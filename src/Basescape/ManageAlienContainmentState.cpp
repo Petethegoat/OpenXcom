@@ -168,6 +168,7 @@ ManageAlienContainmentState::ManageAlienContainmentState(Base *base, int prisonT
 	_lstAliens->onRightArrowRelease((ActionHandler)&ManageAlienContainmentState::lstItemsRightArrowRelease);
 	_lstAliens->onRightArrowClick((ActionHandler)&ManageAlienContainmentState::lstItemsRightArrowClick);
 	_lstAliens->onMousePress((ActionHandler)&ManageAlienContainmentState::lstItemsMousePress);
+	_lstAliens->onMouseWheel((ActionHandler)&ManageAlienContainmentState::lstItemsMouseWheel);
 
 	const std::vector<std::string> &items = _game->getMod()->getItemsList();
 	for (std::vector<std::string>::const_iterator i = items.begin(); i != items.end(); ++i)
@@ -391,38 +392,41 @@ void ManageAlienContainmentState::lstItemsLeftArrowClick(Action *action)
 }
 
 /**
- * Handles the mouse-wheels on the arrow-buttons.
+ * Handles middle-clicks.
  * @param action Pointer to an action.
  */
 void ManageAlienContainmentState::lstItemsMousePress(Action *action)
 {
 	_sel = _lstAliens->getSelectedRow();
-	if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP)
-	{
-		_timerInc->stop();
-		_timerDec->stop();
-		if (action->getAbsoluteXMouse() >= _lstAliens->getArrowsLeftEdge() &&
-			action->getAbsoluteXMouse() <= _lstAliens->getArrowsRightEdge())
-		{
-			increaseByValue(Options::changeValueByMouseWheel);
-		}
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN)
-	{
-		_timerInc->stop();
-		_timerDec->stop();
-		if (action->getAbsoluteXMouse() >= _lstAliens->getArrowsLeftEdge() &&
-			action->getAbsoluteXMouse() <= _lstAliens->getArrowsRightEdge())
-		{
-			decreaseByValue(Options::changeValueByMouseWheel);
-		}
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
+	if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
 	{
 		RuleResearch *selectedTopic = _game->getMod()->getResearch(_aliens[_sel]);
 		if (selectedTopic != 0)
 		{
 			_game->pushState(new TechTreeViewerState(selectedTopic, 0));
+		}
+	}
+}
+
+/**
+ * Handles the mouse-wheels on the arrow buttons.
+ * @param action Pointer to an action.
+ */
+void ManageAlienContainmentState::lstItemsMouseWheel(Action *action)
+{
+	_sel = _lstAliens->getSelectedRow();
+	const SDL_Event &ev(*action->getDetails());
+	if (ev.type == SDL_MOUSEWHEEL)
+	{
+		_timerInc->stop();
+		_timerDec->stop();
+		if (action->getAbsoluteXMouse() >= _lstAliens->getArrowsLeftEdge() &&
+			action->getAbsoluteXMouse() <= _lstAliens->getArrowsRightEdge())
+		{
+			if (ev.wheel.y > 0)
+				increaseByValue(Options::changeValueByMouseWheel);
+			else
+				decreaseByValue(Options::changeValueByMouseWheel);
 		}
 	}
 }

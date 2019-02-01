@@ -52,6 +52,10 @@ public:
 	{
 		void operator()(SDL_Surface*);
 	};
+	static const int RMASK;
+	static const int GMASK;
+	static const int BMASK;
+	static const int AMASK;
 
 	using UniqueBufferPtr = std::unique_ptr<Uint8, UniqueBufferDeleter>;
 	using UniqueSurfacePtr = std::unique_ptr<SDL_Surface, UniqueSurfaceDeleter>;
@@ -167,7 +171,14 @@ public:
 	 */
 	SDL_Color *getPalette() const
 	{
-		return _surface->format->palette->colors;
+		if (_surface->format->palette)
+		{
+			return _surface->format->palette->colors;
+		}
+		else
+		{
+			return NULL;
+		}
 	}
 	/// Sets the X position of the surface.
 	virtual void setX(int x);

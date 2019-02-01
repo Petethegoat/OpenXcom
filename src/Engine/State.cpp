@@ -611,4 +611,9 @@ void State::setGamePtr(Game* game)
 	_game = game;
 }
 
+Game* State::getGame()
+{
+	return _game;
+}
+
 }

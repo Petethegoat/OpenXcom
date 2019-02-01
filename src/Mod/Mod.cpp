@@ -1815,7 +1815,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 			color.r = (*j)[0].as<int>(0);
 			color.g = (*j)[1].as<int>(0);
 			color.b = (*j)[2].as<int>(0);
-			color.unused = (*j)[3].as<int>(2);;
+			color.a = (*j)[3].as<int>(2);;
 			_transparencies.push_back(color);
 		}
 	}
@@ -4246,7 +4246,7 @@ void Mod::createTransparencyLUT(Palette *pal)
 	for (std::vector<SDL_Color>::const_iterator tint = _transparencies.begin(); tint != _transparencies.end(); ++tint)
 	{
 		// then the opacity levels, using the alpha channel as the step
-		for (int opacity = 1; opacity < 1 + tint->unused * 4; opacity += tint->unused)
+		for (int opacity = 1; opacity < 1 + tint->a * 4; opacity += tint->a)
 		{
 			// then the palette itself
 			for (int currentColor = 0; currentColor < 256; ++currentColor)

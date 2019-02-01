@@ -22,6 +22,7 @@
 #include "../Engine/Font.h"
 #include "../Engine/Timer.h"
 #include "../Engine/Options.h"
+#include "../Engine/Language.h"
 
 namespace OpenXcom
 {
@@ -35,6 +36,9 @@ namespace OpenXcom
  * @param y Y position in pixels.
  */
 TextEdit::TextEdit(State *state, int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _blink(true), _modal(true), _char('A'), _caretPos(0), _textEditConstraint(TEC_NONE), _change(0), _enter(0), _state(state)
+#ifdef __MOBILE__
+	, _isKeyboardActive(false)
+#endif
 {
 	_isFocused = false;
 	_text = new Text(width, height, 0, 0);
@@ -49,11 +53,16 @@ TextEdit::TextEdit(State *state, int width, int height, int x, int y) : Interact
  */
 TextEdit::~TextEdit()
 {
+	/* for good measure? */
+#ifdef __MOBILE__
+	_stopTextInput();
+#endif
 	delete _text;
 	delete _caret;
 	delete _timer;
 	// In case it was left focused
-	SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
+	/* FIXME: have a look a this */
+	//SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
 	_state->setModal(0);
 }
 
@@ -88,23 +97,72 @@ void TextEdit::setFocus(bool focus, bool modal)
 		InteractiveSurface::setFocus(focus);
 		if (_isFocused)
 		{
-			SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+			/* FIXME: have a look a this */
+			//SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 			_caretPos = _value.length();
 			_blink = true;
 			_timer->start();
 			if (_modal)
 				_state->setModal(this);
+#ifdef __MOBILE__
+			// Show virtual keyboard
+			/* SDL_Rect r;
+			r.x = getX();
+			r.y = getY();
+			r.w = getWidth();
+			r.h = getHeight();
+			SDL_SetTextInputRect(&r);
+			SDL_StartTextInput(); */
+			_startTextInput();
+#endif
 		}
 		else
 		{
 			_blink = false;
 			_timer->stop();
-			SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
+			/* FIXME: have a look a this */
+			//SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
 			if (_modal)
 				_state->setModal(0);
+#ifdef __MOBILE__
+			/* SDL_StopTextInput(); */
+			_stopTextInput();
+#endif
 		}
 	}
 }
+
+#ifdef __MOBILE__
+/**
+ * Shows keyboard on devices without physical keyboard
+ */
+void TextEdit::_startTextInput()
+{
+	if (!SDL_IsScreenKeyboardShown(NULL))
+	{
+		SDL_Rect r;
+		r.x = getX();
+		r.y = getY();
+		r.w = getWidth();
+		r.h = getHeight();
+		SDL_SetTextInputRect(&r);
+		SDL_StartTextInput();
+		_isKeyboardActive = true;
+	}
+}
+/**
+ * Hides keyboard after text is entered
+ */
+
+void TextEdit::_stopTextInput()
+{
+	if (_isKeyboardActive)
+	{
+		SDL_StopTextInput();
+		_isKeyboardActive = false;
+	}
+}
+#endif
 
 /**
  * Changes the text edit to use the big-size font.
@@ -428,6 +486,10 @@ void TextEdit::mousePress(Action *action, State *state)
 {
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
+#ifdef __MOBILE__
+	/* Show keyboard */
+	_startTextInput();
+#endif
 		if (!_isFocused)
 		{
 			setFocus(true);
@@ -551,12 +613,8 @@ void TextEdit::keyboardPress(Action *action, State *state)
 			}
 			break;
 		default:
-			UCode c = action->getDetails()->key.keysym.unicode;
-			if (isValidChar(c) && !exceedsMaxWidth(c))
-			{
-				_value.insert(_caretPos, 1, c);
-				_caretPos++;
-			}
+			// Letter keys are handled in textInput
+			break;
 		}
 	}
 	_redraw = true;
@@ -588,6 +646,33 @@ void TextEdit::onChange(ActionHandler handler)
 void TextEdit::onEnter(ActionHandler handler)
 {
 	_enter = handler;
+}
+
+void TextEdit::textInput(Action *action, State *state)
+{
+	// FIXME: This might not be consistent with current changes
+	std::string text(action->getDetails()->text.text);
+	UString wText = Unicode::convUtf8ToUtf32(text);
+	bool correct = true;
+	for(UString::iterator it = wText.begin(); it != wText.end(); ++it)
+	{
+		// FIXME: Probably not the correct check (text might be quite long?)
+		if (!isValidChar(*it) || exceedsMaxWidth(*it))
+		{
+			correct = false;
+			break;
+		}
+	}
+	if (correct)
+	{
+		_value += wText;
+		_caretPos = _value.length();
+	}
+	_redraw = true;
+	if (_change)
+	{
+		(state->*_change)(action);
+	}
 }
 
 }

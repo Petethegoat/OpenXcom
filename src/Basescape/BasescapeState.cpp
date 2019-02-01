@@ -54,6 +54,7 @@
 #include "../Mod/RuleInterface.h"
 #include "PlaceFacilityState.h"
 #include "../Ufopaedia/Ufopaedia.h"
+#include "../Engine/Timer.h"
 
 namespace OpenXcom
 {
@@ -65,6 +66,9 @@ namespace OpenXcom
  * @param globe Pointer to the Geoscape globe.
  */
 BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(globe)
+#ifdef __MOBILE__
+		, _clickGuard(false)
+#endif
 {
 	// Create objects
 	_txtFacility = new Text(192, 9, 0, 0);
@@ -158,6 +162,13 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_btnGeoscape->setText(tr("STR_GEOSCAPE_UC"));
 	_btnGeoscape->onMouseClick((ActionHandler)&BasescapeState::btnGeoscapeClick);
 	_btnGeoscape->onKeyboardPress((ActionHandler)&BasescapeState::btnGeoscapeClick, Options::keyCancel);
+#ifdef __MOBILE__
+	_longPressTimer = new Timer(Options::longPressDuration, false);
+	_longPressTimer->onTimer((StateHandler)&BasescapeState::viewLongPress);
+
+	_view->onMousePress((ActionHandler)&BasescapeState::viewPress);
+	_view->onMouseRelease((ActionHandler)&BasescapeState::viewRelease);
+#endif
 }
 
 /**
@@ -179,6 +190,9 @@ BasescapeState::~BasescapeState()
 	{
 		delete _base;
 	}
+#ifdef __MOBILE__
+	delete _longPressTimer;
+#endif
 }
 
 /**
@@ -354,6 +368,14 @@ void BasescapeState::btnGeoscapeClick(Action *)
  */
 void BasescapeState::viewLeftClick(Action *)
 {
+#ifdef __MOBILE__
+	// If the guard is in place, ignore this click and clear guard
+	if (_clickGuard)
+	{
+		_clickGuard = false;
+		return;
+	}
+#endif
 	BaseFacility *fac = _view->getSelectedFacility();
 	if (fac != 0)
 	{
@@ -566,7 +588,7 @@ void BasescapeState::handleKeyPress(Action *action)
 {
 	if (action->getDetails()->type == SDL_KEYDOWN)
 	{
-		SDLKey baseKeys[] = {Options::keyBaseSelect1,
+		SDL_Keycode baseKeys[] = {Options::keyBaseSelect1,
 			                 Options::keyBaseSelect2,
 			                 Options::keyBaseSelect3,
 			                 Options::keyBaseSelect4,
@@ -595,5 +617,41 @@ void BasescapeState::edtBaseChange(Action *)
 {
 	_base->setName(_edtBase->getText());
 }
+#ifdef __MOBILE__
+/**
+ * Pokes the timer.
+ */
+void BasescapeState::think()
+{
+	_longPressTimer->think(this, 0);
+}
+/**
+ * Starts the timer when the base view is pressed.
+ * @param action Pointer to an action.
+ */
+void BasescapeState::viewPress(Action *action)
+{
+	_longPressTimer->start();
+}
+
+/**
+ * Stops the timer if the user doesn't wait for the base module state to appear.
+ * @param action Pointer to an action.
+ */
+void BasescapeState::viewRelease(Action *action)
+{
+	_longPressTimer->stop();
+}
+
+/**
+ * Fires the right mouse button handler if the view was pressed long enough.
+ */
+void BasescapeState::viewLongPress()
+{
+	_longPressTimer->stop();
+	_clickGuard = true;
+	viewRightClick(0);
+}
+#endif
 
 }

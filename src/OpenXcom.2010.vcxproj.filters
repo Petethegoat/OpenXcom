@@ -618,9 +618,6 @@
     <ClCompile Include="Engine\Scalers\scalebit.cpp">
       <Filter>Engine\Scalers</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\OpenGL.cpp">
-      <Filter>Engine</Filter>
-    </ClCompile>
     <ClCompile Include="Interface\ToggleTextButton.cpp">
       <Filter>Interface</Filter>
     </ClCompile>
@@ -1026,6 +1023,15 @@
     </ClCompile>
     <ClCompile Include="Geoscape\NewPossibleFacilityState.cpp">
       <Filter>Geoscape</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Renderer.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\SDLRenderer.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Menu\OptionsSystemState.cpp">
+      <Filter>Menu</Filter>
     </ClCompile>
     <ClCompile Include="Geoscape\TrainingFinishedState.cpp">
       <Filter>Geoscape</Filter>
@@ -1690,9 +1696,6 @@
     <ClInclude Include="Savegame\SerializationHelper.h">
       <Filter>Savegame</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\OpenGL.h">
-      <Filter>Engine</Filter>
-    </ClInclude>
     <ClInclude Include="Interface\ToggleTextButton.h">
       <Filter>Interface</Filter>
     </ClInclude>
@@ -2131,6 +2134,15 @@
     </ClInclude>
     <ClInclude Include="Geoscape\NewPossibleFacilityState.h">
       <Filter>Geoscape</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Renderer.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\SDLRenderer.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Menu\OptionsSystemState.h">
+      <Filter>Menu</Filter>
     </ClInclude>
     <ClInclude Include="Geoscape\TrainingFinishedState.h">
       <Filter>Geoscape</Filter>

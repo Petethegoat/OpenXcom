@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "../Engine/Logger.h"
 #include "Inventory.h"
 #include <algorithm>
 #include <cmath>
@@ -60,7 +61,7 @@ namespace OpenXcom
  * @param y Y position in pixels.
  * @param base Is the inventory being called from the basescape?
  */
-Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base) : InteractiveSurface(width, height, x, y), _game(game), _selUnit(0), _selItem(0), _tu(true), _base(base), _mouseOverItem(0), _groundOffset(0), _animFrame(0)
+Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base) : InteractiveSurface(width, height, x, y), _game(game), _selUnit(0), _selItem(0), _tu(true), _base(base), _groundOffset(0), _animFrame(0), _xBeforeDrag(0), _yBeforeDrag(0), _dragging(false), _clicked(false)
 {
 	_twoHandedRed = _game->getMod()->getInterface("battlescape")->getElement("twoHandedRed")->color;
 	_twoHandedGreen = _game->getMod()->getInterface("battlescape")->getElement("twoHandedGreen")->color;
@@ -104,6 +105,13 @@ Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base)
 	_inventorySlotBackPack = _game->getMod()->getInventory("STR_BACK_PACK", true);
 	_inventorySlotBelt = _game->getMod()->getInventory("STR_BELT", true);
 	_inventorySlotGround = _game->getMod()->getInventory("STR_GROUND", true);
+#ifdef __MOBILE__
+	_longPressTimer = new Timer(Options::longPressDuration, true);
+	_longPressTimer->onTimer((SurfaceHandler)&Inventory::longPressAction);
+	_longPressTimer->stop();
+
+	_longPressAction = NULL;
+#endif
 }
 
 /**
@@ -117,6 +125,13 @@ Inventory::~Inventory()
 	delete _warning;
 	delete _stackNumber;
 	delete _animTimer;
+#ifdef __MOBILE__
+	delete _longPressTimer;
+	if (_longPressAction)
+	{
+		delete _longPressAction;
+	}
+#endif
 }
 
 /**
@@ -590,6 +605,9 @@ void Inventory::think()
 {
 	_warning->think();
 	_animTimer->think(0,this);
+#ifdef __MOBILE__
+	_longPressTimer->think(NULL, this);
+#endif
 }
 
 /**
@@ -637,6 +655,27 @@ void Inventory::mouseOver(Action *action, State *state)
 
 	_selection->setX((int)floor(action->getAbsoluteXMouse()) - _selection->getWidth()/2 - getX());
 	_selection->setY((int)floor(action->getAbsoluteYMouse()) - _selection->getHeight()/2 - getY());
+
+	if (CrossPlatform::getPointerState(0, 0) && _clicked)
+	{
+		int mx = action->getDetails()->motion.x;
+		int my = action->getDetails()->motion.y;
+		if ((std::abs(mx - _xBeforeDrag) + std::abs(my - _yBeforeDrag)) > Options::dragScrollPixelTolerance)
+		{
+			if (!_dragging)
+			{
+				action->setMouseAction(_xBeforeDrag + action->getLeftBlackBand(),
+					_yBeforeDrag + action->getTopBlackBand(),
+					action->getSender()->getX(),
+					action->getSender()->getY());
+				mouseClick(action, state);
+				_dragging = true;
+				//_longPressTimer->stop();
+				_clicked = false;
+			}
+		}
+	}
+
 	InteractiveSurface::mouseOver(action, state);
 }
 
@@ -1561,5 +1600,75 @@ void Inventory::animate()
 	drawItems();
 	drawSelectedItem();
 }
+#ifdef __MOBILE__
+void Inventory::mousePress(Action *action, State *state)
+{
+	//Log(LOG_INFO) << "Long press timer started";
+	// This should only be called when we're in pre-battle inventory.
+	_xBeforeDrag = action->getDetails()->button.x;
+	_yBeforeDrag = action->getDetails()->button.y;
+	_dragging = false;
+	_clicked = true;
+	if (!_tu)
+	{
+		// Prepare our fake action
+		if (_longPressAction != NULL)
+		{
+			delete _longPressAction;
+		}
+		_longPressEvent = *(action->getDetails());
+		//Log(LOG_INFO) << "Event type: " << fakeEvent.type;
+		//if (fakeEvent.type == SDL_MOUSEBUTTONDOWN)
+		//{
+		//	Log(LOG_INFO) << "(it's MouseButtonDown)";
+		//}
+		_longPressAction = new Action(&_longPressEvent, action->getXScale(), action->getYScale(), action->getTopBlackBand(), action->getLeftBlackBand());
+		_longPressAction->setMouseAction(action->getXMouse() + action->getLeftBlackBand(),
+					 action->getYMouse() + action->getTopBlackBand(),
+					 action->getSender()->getX(),
+					 action->getSender()->getY());
+		_longPressAction->setSender(action->getSender());
+		_longPressState = state;
+		// And start the timer
+		_longPressTimer->start();
+	}
+}
 
+void Inventory::mouseRelease(Action *action, State *state)
+{
+	_clicked = false;
+	//Log(LOG_INFO) << "Long press timer stopped";
+	if (_dragging)
+	{
+		_dragging = false;
+	}
+	if (!_tu)
+	{
+		_longPressTimer->stop();
+		if (_longPressAction != NULL)
+		{
+			//mouseClick(_longPressAction, _longPressState);
+			delete _longPressAction;
+			_longPressAction = NULL;
+		}
+	}
+}
+
+void Inventory::longPressAction()
+{
+//	Log(LOG_INFO) << "Long press action called";
+//	_longPressAction->getDetails()->button.button = SDL_BUTTON_LEFT;
+//	mouseClick(_longPressAction, _longPressState);
+	_clicked = false;
+	if (!_dragging)
+	{
+		_longPressAction->getDetails()->button.button = SDL_BUTTON_RIGHT;
+		mouseClick(_longPressAction, _longPressState);
+	}
+	_longPressTimer->stop();
+	delete _longPressAction;
+	_longPressAction = NULL;
+}
+
+#endif
 }

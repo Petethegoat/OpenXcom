@@ -45,6 +45,9 @@ private:
 	Frame *_frame;
 	InteractiveSurface *_button[24];
 	Surface *_bg;
+#ifdef __MOBILE__
+	InteractiveSurface *_outside;
+#endif
 public:
 	/// Creates the Prime Grenade state.
 	PrimeGrenadeState(BattleAction *action, bool inInventoryView, BattleItem *grenadeInInventory);
@@ -54,6 +57,9 @@ public:
 	void handle(Action *action) override;
 	/// Handler for clicking a button.
 	void btnClick(Action *action);
+#ifdef __MOBILE__
+	void outsideClick(Action *action);
+#endif
 };
 
 }

@@ -77,10 +77,15 @@ OptionsVideoState::OptionsVideoState(OptionsOrigin origin) : OptionsBaseState(or
 	_btnLockMouse = new ToggleTextButton(104, 16, 206, 110);
 	_btnRootWindowedMode = new ToggleTextButton(104, 16, 206, 128);
 
-	// Get available fullscreen modes
-	_res = SDL_ListModes(NULL, SDL_FULLSCREEN);
-	if (_res != (SDL_Rect**)-1 && _res != (SDL_Rect**)0)
+	/* TODO: add current mode */
+	/* Get available fullscreen modes */
+	_res.resize(SDL_GetNumDisplayModes(0));
+	for (size_t i = 0; i < _res.size(); ++i)
+		SDL_GetDisplayMode(0, i, &_res[i]);
+	_resCurrent = -1;
+	if (_res.size() != 0)
 	{
+#if 0
 		int i;
 		_resCurrent = -1;
 		for (i = 0; _res[i]; ++i)
@@ -91,12 +96,11 @@ OptionsVideoState::OptionsVideoState(OptionsOrigin origin) : OptionsBaseState(or
 				_resCurrent = i;
 			}
 		}
-		_resAmount = i;
+		_res.size() = i;
+#endif
 	}
 	else
 	{
-		_resCurrent = -1;
-		_resAmount = 0;
 		_btnDisplayResolutionDown->setVisible(false);
 		_btnDisplayResolutionUp->setVisible(false);
 		Log(LOG_WARNING) << "Couldn't get display resolutions";
@@ -174,7 +178,7 @@ OptionsVideoState::OptionsVideoState(OptionsOrigin origin) : OptionsBaseState(or
 	_btnLetterbox->onMouseOut((ActionHandler)&OptionsVideoState::txtTooltipOut);
 
 	_btnLockMouse->setText(tr("STR_LOCK_MOUSE"));
-	_btnLockMouse->setPressed(Options::captureMouse == SDL_GRAB_ON);
+	_btnLockMouse->setPressed(Options::captureMouse);
 	_btnLockMouse->onMouseClick((ActionHandler)&OptionsVideoState::btnLockMouseClick);
 	_btnLockMouse->setTooltip("STR_LOCK_MOUSE_DESC");
 	_btnLockMouse->onMouseIn((ActionHandler)&OptionsVideoState::txtTooltipIn);
@@ -207,8 +211,8 @@ OptionsVideoState::OptionsVideoState(OptionsOrigin origin) : OptionsBaseState(or
 
 	std::vector<std::string> filterNames;
 	filterNames.push_back(tr("STR_DISABLED"));
-	filterNames.push_back("Scale");
-	filterNames.push_back("HQx");
+	filterNames.push_back("Linear");
+	filterNames.push_back("Anisotropic (disabled)");
 	filterNames.push_back("xBRZ");
 	_filters.push_back("");
 	_filters.push_back("");
@@ -244,11 +248,11 @@ OptionsVideoState::OptionsVideoState(OptionsOrigin origin) : OptionsBaseState(or
 		}
 #endif
 	}
-	else if (Options::useScaleFilter)
+	else if (Options::useLinearScaler)
 	{
 		selFilter = 1;
 	}
-	else if (Options::useHQXFilter)
+	else if (Options::useAnisotropicScaler)
 	{
 		selFilter = 2;
 	}
@@ -360,11 +364,11 @@ std::string OptionsVideoState::ucWords(std::string str)
  */
 void OptionsVideoState::btnDisplayResolutionUpClick(Action *)
 {
-	if (_resAmount == 0)
+	if (_res.size() == 0)
 		return;
 	if (_resCurrent <= 0)
 	{
-		_resCurrent = _resAmount-1;
+		_resCurrent = _res.size()-1;
 	}
 	else
 	{
@@ -379,9 +383,9 @@ void OptionsVideoState::btnDisplayResolutionUpClick(Action *)
  */
 void OptionsVideoState::btnDisplayResolutionDownClick(Action *)
 {
-	if (_resAmount == 0)
+	if (_res.size() == 0)
 		return;
-	if (_resCurrent >= _resAmount-1)
+	if ( (size_t)(_resCurrent + 1) >= _res.size())
 	{
 		_resCurrent = 0;
 	}
@@ -398,13 +402,13 @@ void OptionsVideoState::btnDisplayResolutionDownClick(Action *)
 void OptionsVideoState::updateDisplayResolution()
 {
 	std::ostringstream ssW, ssH;
-	ssW << (int)_res[_resCurrent]->w;
-	ssH << (int)_res[_resCurrent]->h;
+	ssW << _res[_resCurrent].w;
+	ssH << _res[_resCurrent].h;
 	_txtDisplayWidth->setText(ssW.str());
 	_txtDisplayHeight->setText(ssH.str());
 
-	Options::newDisplayWidth = _res[_resCurrent]->w;
-	Options::newDisplayHeight = _res[_resCurrent]->h;
+	Options::newDisplayWidth = _res[_resCurrent].w;
+	Options::newDisplayHeight = _res[_resCurrent].h;
 }
 
 /**
@@ -418,20 +422,6 @@ void OptionsVideoState::txtDisplayWidthChange(Action *)
 	ss << std::dec << _txtDisplayWidth->getText();
 	ss >> std::dec >> width;
 	Options::newDisplayWidth = width;
-	// Update resolution mode
-	if (_res != (SDL_Rect**)-1 && _res != (SDL_Rect**)0)
-	{
-		int i;
-		_resCurrent = -1;
-		for (i = 0; _res[i]; ++i)
-		{
-			if (_resCurrent == -1 &&
-				((_res[i]->w == Options::newDisplayWidth && _res[i]->h <= Options::newDisplayHeight) || _res[i]->w < Options::newDisplayWidth))
-			{
-				_resCurrent = i;
-			}
-		}
-	}
 }
 
 /**
@@ -446,11 +436,13 @@ void OptionsVideoState::txtDisplayHeightChange(Action *)
 	ss >> std::dec >> height;
 	Options::newDisplayHeight = height;
 	// Update resolution mode
-	if (_res != (SDL_Rect**)-1 && _res != (SDL_Rect**)0)
+	// TODO: Rewrite this part so that it would use std::vector
+#if 0
+	if (_res.size() > 0)
 	{
 		int i;
 		_resCurrent = -1;
-		for (i = 0; _res[i]; ++i)
+		for (std::vector<SDL_DisplayMode>::iterator i = _res.begin(); i != res.end(); ++i)
 		{
 			if (_resCurrent == -1 &&
 				((_res[i]->w == Options::newDisplayWidth && _res[i]->h <= Options::newDisplayHeight) || _res[i]->w < Options::newDisplayWidth))
@@ -459,6 +451,7 @@ void OptionsVideoState::txtDisplayHeightChange(Action *)
 			}
 		}
 	}
+#endif
 }
 
 /**
@@ -480,32 +473,37 @@ void OptionsVideoState::cbxFilterChange(Action *)
 	{
 	case 0:
 		Options::newOpenGL = false;
-		Options::newScaleFilter = false;
-		Options::newHQXFilter = false;
-		Options::newXBRZFilter = false;
+		Options::newNearestScaler = true;
+		Options::newLinearScaler = false;
+		Options::newAnisotropicScaler = false;
+        Options::newXBRZFilter = false;
 		break;
 	case 1:
 		Options::newOpenGL = false;
-		Options::newScaleFilter = true;
-		Options::newHQXFilter = false;
-		Options::newXBRZFilter = false;
+		Options::newNearestScaler = false;
+		Options::newLinearScaler = true;
+		Options::newAnisotropicScaler = false;
+        Options::newXBRZFilter = false;
 		break;
 	case 2:
 		Options::newOpenGL = false;
-		Options::newScaleFilter = false;
-		Options::newHQXFilter = true;
-		Options::newXBRZFilter = false;
+		Options::newNearestScaler = false;
+		Options::newLinearScaler = false;
+		Options::newAnisotropicScaler = true;
+        Options::newXBRZFilter = false;
 		break;
-	case 3:
+    case 3:
 		Options::newOpenGL = false;
-		Options::newScaleFilter = false;
-		Options::newHQXFilter = false;
+		Options::newNearestScaler = true;
+		Options::newLinearScaler = false;
+		Options::newAnisotropicScaler = false;
 		Options::newXBRZFilter = true;
 		break;
 	default:
 		Options::newOpenGL = true;
-		Options::newScaleFilter = false;
-		Options::newHQXFilter = false;
+		Options::newNearestScaler = false;
+		Options::newLinearScaler = false;
+		Options::newAnisotropicScaler = false;
 		Options::newXBRZFilter = false;
 		Options::newOpenGLShader = _filters[_cbxFilter->getSelected()];
 		break;
@@ -560,8 +558,9 @@ void OptionsVideoState::btnLetterboxClick(Action *)
  */
 void OptionsVideoState::btnLockMouseClick(Action *)
 {
-	Options::captureMouse = (SDL_GrabMode)_btnLockMouse->getPressed();
-	SDL_WM_GrabInput(Options::captureMouse);
+	// Don't do that! Breaks stuff hard.
+	Options::captureMouse = _btnLockMouse->getPressed();
+	//SDL_SetRelativeMouseMode((Options::captureMouse)?SDL_TRUE:SDL_FALSE); //because a typecast is not enough
 }
 
 /**
@@ -621,10 +620,11 @@ void OptionsVideoState::resize(int &dX, int &dY)
 void OptionsVideoState::handle(Action *action)
 {
 	State::handle(action);
-	if (action->getDetails()->type == SDL_KEYDOWN && action->getDetails()->key.keysym.sym == SDLK_g && (SDL_GetModState() & KMOD_CTRL) != 0)
+	if (action->getDetails()->key.keysym.sym == SDLK_g && (SDL_GetModState() & KMOD_CTRL) != 0)
 	{
-		_btnLockMouse->setPressed(Options::captureMouse == SDL_GRAB_ON);
+		_btnLockMouse->setPressed(Options::captureMouse);
 	}
+
 }
 
 /**

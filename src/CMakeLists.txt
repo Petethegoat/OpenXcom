@@ -137,10 +137,10 @@ set ( engine_src
   Engine/LocalizedText.cpp
   Engine/ModInfo.cpp
   Engine/Music.cpp
-  Engine/OpenGL.cpp
   Engine/OptionInfo.cpp
   Engine/Options.cpp
   Engine/Palette.cpp
+  Engine/Renderer.cpp
   Engine/RNG.cpp
   Engine/Scalers/hq2x.cpp
   Engine/Scalers/hq3x.cpp
@@ -152,6 +152,7 @@ set ( engine_src
   Engine/Scalers/xbrz.cpp
   Engine/Screen.cpp
   Engine/Script.cpp
+  Engine/SDLRenderer.cpp
   Engine/Sound.cpp
   Engine/SoundSet.cpp
   Engine/State.cpp

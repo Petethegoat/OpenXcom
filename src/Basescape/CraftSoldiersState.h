@@ -32,6 +32,7 @@ class ComboBox;
 class Base;
 class Soldier;
 struct SortFunctor;
+class Timer;
 
 /**
  * Select Squad screen that lets the player
@@ -54,6 +55,16 @@ private:
 	getStatFn_t _dynGetter;
 	/// initializes the display list based on the craft soldier's list and the position to display
 	void initList(size_t scrl);
+	/// Stores previously selected soldier position
+	int _pselSoldier;
+	/// (De)selection guard
+	bool _wasDragging;
+#ifdef __MOBILE__
+	/// Timer for handling long presses as right clicks
+	Timer *_longPressTimer;
+	/// Click guard for state transitions
+	bool _clickGuard;
+#endif
 public:
 	/// Creates the Craft Soldiers state.
 	CraftSoldiersState(Base *base, size_t craft);
@@ -77,6 +88,18 @@ public:
 	void lstSoldiersClick(Action *action);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstSoldiersMousePress(Action *action);
+	/// Handler for mousewheel action.
+	void lstSoldiersMouseWheel(Action *action);
+	/// Handler for mouseover (drag-drop) action
+	void lstSoldiersMouseOver(Action *action);
+#ifdef __MOBILE__
+	/// Pokes the timer
+	void think();
+	/// Handler for mouse releases
+	void lstSoldiersMouseRelease(Action *action);
+	/// Handler for long presses
+	void lstSoldiersLongPress();
+#endif
 	/// Handler for clicking the De-assign All Soldiers button.
 	void btnDeassignAllSoldiersClick(Action *action);
 };

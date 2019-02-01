@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 OpenXcom Developers.
+ * Copyright 2010-2015 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -520,7 +520,7 @@ void VideoState::init()
 				pal2[color].r = (((int)pal[color].r) * i) / 20;
 				pal2[color].g = (((int)pal[color].g) * i) / 20;
 				pal2[color].b = (((int)pal[color].b) * i) / 20;
-				pal2[color].unused = pal[color].unused;
+				pal2[color].a = pal[color].a;
 			}
 			_game->getScreen()->setPalette(pal2, 0, 256, true);
 			_game->getScreen()->flip();
@@ -540,6 +540,13 @@ void VideoState::init()
 #ifndef __NO_MUSIC
 	Sound::stop();
 	Music::stop();
+#endif
+#ifdef __ANDROID__
+	// FIXME: This should go to the Game.cpp probably
+	SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH, Options::mouseMode == 0 ? "0" : "1");
+	// We're not really using the Dollar Gesture events.
+	SDL_EventState(SDL_DOLLARGESTURE, SDL_IGNORE);
+	SDL_EventState(SDL_DOLLARRECORD, SDL_IGNORE);
 #endif
 
 	_game->getCursor()->setVisible(true);

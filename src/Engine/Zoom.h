@@ -18,11 +18,11 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <SDL.h>
-#include "OpenGL.h"
 
 namespace OpenXcom
 {
 
+class OpenGL;
 
 class Zoom
 {

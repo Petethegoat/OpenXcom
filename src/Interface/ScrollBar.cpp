@@ -201,13 +201,23 @@ void ScrollBar::mousePress(Action *action, State *state)
 		}
 		_pressed = true;
 	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP)
+}
+
+/**
+ * This should handle mousewheel scrolling events.
+ * @param action Pointer to an action.
+ * @param state State that the action hanlders belong to.
+ */
+void ScrollBar::mouseWheel(Action *action, State *state)
+{
+	InteractiveSurface::mouseWheel(action, state);
+	const SDL_Event &ev(*action->getDetails());
+	if (ev.type == SDL_MOUSEWHEEL)
 	{
-		_list->scrollUp(false, true);
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN)
-	{
-		_list->scrollDown(false, true);
+		if (ev.wheel.y > 0)
+			_list->scrollUp(false, true);
+		else
+			_list->scrollDown(false, true);
 	}
 }
 

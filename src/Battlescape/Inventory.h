@@ -54,6 +54,18 @@ private:
 	NumberText *_stackNumber;
 	std::string _searchString;
 	Timer *_animTimer;
+#ifdef __MOBILE__
+	Timer *_longPressTimer;
+	// SDL_Event for long press action
+	SDL_Event _longPressEvent;
+	// A fake Action pointer for long press events.
+	Action *_longPressAction;
+	State *_longPressState;
+#endif
+	// Cursor placement for drag-and-drop
+	int _xBeforeDrag, _yBeforeDrag;
+	bool _dragging, _clicked;
+
 	int _depth;
 	RuleInventory *_inventorySlotRightHand = nullptr;
 	RuleInventory *_inventorySlotLeftHand = nullptr;
@@ -124,6 +136,14 @@ public:
 	void animate();
 	/// Get current animation frame for invenotry.
 	int getAnimFrame() const { return _animFrame; }
+#ifdef __MOBILE__
+	/// Start long press timer
+	void mousePress(Action *action, State *state);
+	/// Stop long press timer
+	void mouseRelease(Action *action, State *state);
+	/// Handle long press on grenade
+	void longPressAction();
+#endif
 };
 
 }

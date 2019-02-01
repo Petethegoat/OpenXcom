@@ -21,6 +21,7 @@
  * X-COM Adlib Player by Volutar
  */
 
+#include <string.h>
 #include <stdint.h>
 #include <cmath>
 #include <memory.h>

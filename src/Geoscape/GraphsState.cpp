@@ -57,8 +57,11 @@ GraphsState::GraphsState() : _butRegionsOffset(0), _butCountriesOffset(0), _zoom
 {
 	// Create object
 	_bg = new InteractiveSurface(320, 200, 0, 0);
+	/* FIXME: and all the others in this file like this */
+#if 0
 	_bg->onMousePress((ActionHandler)&GraphsState::shiftButtons, SDL_BUTTON_WHEELUP);
 	_bg->onMousePress((ActionHandler)&GraphsState::shiftButtons, SDL_BUTTON_WHEELDOWN);
+#endif
 	_btnUfoRegion = new InteractiveSurface(32, 24, 96, 0);
 	_btnUfoCountry = new InteractiveSurface(32, 24, 128, 0);
 	_btnXcomRegion = new InteractiveSurface(32, 24, 160, 0);
@@ -1201,26 +1204,29 @@ void GraphsState::shiftButtons(Action *action)
 	// only if active 'screen' is other than finance
 	if (_finance)
 		return;
-	// select the data's we'll processing - regions or countrie
+	// select the data's we'll processing - regions or countries
+    const SDL_Event &ev(*action->getDetails());
 	if (_country)
 	{
 		// too few countries? - return
 		if (_countryToggles.size() <= GRAPH_MAX_BUTTONS)
 			return;
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP)
-			scrollButtons(_countryToggles, _btnCountries, _butCountriesOffset, -1);
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN)
-			scrollButtons(_countryToggles, _btnCountries, _butCountriesOffset, 1);
+		else if (ev.type == SDL_MOUSEWHEEL)
+		{
+			const int inc = ev.wheel.y > 0 ? -1 : 1;
+			scrollButtons(_countryToggles, _btnCountries, _butCountriesOffset, inc);
+		}
 	}
 	else
 	{
 		// too few regions? - return
 		if (_regionToggles.size() <= GRAPH_MAX_BUTTONS)
 			return;
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP)
-			scrollButtons(_regionToggles, _btnRegions, _butRegionsOffset, -1);
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN)
-			scrollButtons(_regionToggles, _btnRegions, _butRegionsOffset, 1);
+		else if (ev.type == SDL_MOUSEWHEEL)
+		{
+			const int inc = ev.wheel.y > 0 ? -1 : 1;
+			scrollButtons(_regionToggles, _btnRegions, _butRegionsOffset, inc);
+		}
 	}
 }
 

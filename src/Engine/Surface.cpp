@@ -121,7 +121,7 @@ Surface::UniqueBufferPtr Surface::NewAlignedBuffer(int bpp, int width, int heigh
 
 #ifndef _WIN32
 
-	#ifdef __MORPHOS__
+	#if defined(__MORPHOS__) || defined(__ANDROID__)
 
 	buffer = calloc( total, 1 );
 	if (!buffer)
@@ -163,7 +163,7 @@ Surface::UniqueSurfacePtr Surface::NewSdlSurface(SDL_Surface* surface)
 }
 
 /**
- * Helper function creating new SDL surface in unique pointer
+ * Helper function creating new  SDL surface in unique pointer
  * @param buffer memory buffer
  * @param bpp bit depth
  * @param width width of surface
@@ -172,7 +172,11 @@ Surface::UniqueSurfacePtr Surface::NewSdlSurface(SDL_Surface* surface)
  */
 Surface::UniqueSurfacePtr Surface::NewSdlSurface(const Surface::UniqueBufferPtr& buffer, int bpp, int width, int height)
 {
-	auto surface = SDL_CreateRGBSurfaceFrom(buffer.get(), width, height, bpp, GetPitch(bpp, width), 0, 0, 0, 0);
+	SDL_Surface* surface;
+	if (bpp == 32)
+		surface = SDL_CreateRGBSurfaceFrom(buffer.get(), width, height, 32, GetPitch(32, width), Surface::RMASK, Surface::GMASK, Surface::BMASK, Surface::AMASK);
+	else
+		surface = SDL_CreateRGBSurfaceFrom(buffer.get(), width, height, bpp, GetPitch(bpp, width), 0, 0, 0, 0);
 	if (!surface)
 	{
 		throw Exception(SDL_GetError());
@@ -235,6 +239,11 @@ Surface::Surface() : _x{ }, _y{ }, _width{ }, _height{ }, _pitch{ }, _visible(tr
 
 }
 
+
+const int Surface::RMASK = 0x00FF0000;
+const int Surface::GMASK = 0x0000FF00;
+const int Surface::BMASK = 0x000000FF;
+const int Surface::AMASK = 0xFF000000;
 /**
  * Sets up a blank 8bpp surface with the specified size and position,
  * with pure black as the transparent color.
@@ -253,7 +262,7 @@ Surface::Surface(int width, int height, int x, int y) : _x(x), _y(y), _visible(t
 	_width = _surface->w;
 	_height = _surface->h;
 	_pitch = _surface->pitch;
-	SDL_SetColorKey(_surface.get(), SDL_SRCCOLORKEY, 0);
+	SDL_SetColorKey(_surface.get(), SDL_TRUE, 0);
 }
 
 /**
@@ -271,7 +280,7 @@ Surface::Surface(const Surface& other) : Surface{ }
 	//move copy
 	*this = Surface(width, height, other._x, other._y);
 	//cant call `setPalette` because its virtual function and it dont work correctly in constructor
-	SDL_SetColors(_surface.get(), other.getPalette(), 0, 255);
+	SDL_SetPaletteColors(_surface->format->palette, other.getPalette(), 0, 255);
 	RawCopySurf(_surface, other._surface);
 
 	_x = other._x;
@@ -406,7 +415,7 @@ void Surface::loadImage(const std::string &filename)
 					for (int c = 0; c < _surface->format->palette->ncolors; ++c)
 					{
 						SDL_Color *palColor = _surface->format->palette->colors + c;
-						if (palColor->unused == 0)
+						if (palColor->a == 0)
 						{
 							transparent = c;
 							break;
@@ -446,10 +455,12 @@ void Surface::loadImage(const std::string &filename)
 		*this = Surface(surface->w, surface->h, 0, 0);
 		setPalette(surface->format->palette->colors, 0, surface->format->palette->ncolors);
 		RawCopySurf(_surface, surface);
-		FixTransparent(_surface, surface->format->colorkey);
-		if (surface->format->colorkey != 0)
+		Uint32 colorkey;
+		SDL_GetColorKey(surface.get(), &colorkey);
+		FixTransparent(_surface, colorkey);
+		if (colorkey != 0)
 		{
-			Log(LOG_WARNING) << "Image " << filename << " (from SDL) have set incorrect transparent color index " << surface->format->colorkey << " instead of 0";
+			Log(LOG_WARNING) << "Image " << filename << " (from SDL) have set incorrect transparent color index " << colorkey << " instead of 0";
 		}
 	}
 }
@@ -900,7 +911,7 @@ SurfaceCrop Surface::getCrop()
 void Surface::setPalette(const SDL_Color *colors, int firstcolor, int ncolors)
 {
 	if (_surface->format->BitsPerPixel == 8)
-		SDL_SetColors(_surface.get(), const_cast<SDL_Color *>(colors), firstcolor, ncolors);
+		SDL_SetPaletteColors(_surface->format->palette, colors, firstcolor, ncolors);
 }
 
 /**
@@ -1018,8 +1029,8 @@ void Surface::resize(int width, int height)
 	auto surface = NewSdlSurface(alignedBuffer, bpp, width, height);
 
 	// Copy old contents
-	SDL_SetColorKey(surface.get(), SDL_SRCCOLORKEY, 0);
-	SDL_SetColors(surface.get(), getPalette(), 0, 256);
+	SDL_SetColorKey(surface.get(), SDL_TRUE, 0);
+	SDL_SetPaletteColors(surface->format->palette, getPalette(), 0, 256);
 
 	RawCopySurf(surface, _surface);
 

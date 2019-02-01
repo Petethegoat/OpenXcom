@@ -13,6 +13,11 @@ extern "C"
 // helpers that are already present in SDL2
 Uint8 SDL_ReadU8(SDL_RWops *src);
 Sint64 SDL_RWsize(SDL_RWops *src);
+}
+#endif
+#if 1 // our SDL2 does not have it
+extern "C"
+{
 void *SDL_LoadFile_RW(SDL_RWops *src, size_t *datasize, int freesrc);
 }
 #endif

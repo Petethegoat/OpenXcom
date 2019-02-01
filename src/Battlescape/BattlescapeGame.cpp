@@ -1745,7 +1745,7 @@ void BattlescapeGame::primaryAction(Position pos)
 				_currentAction.actor = unit;
 			}
 		}
-		else if (playableUnitSelected())
+		else if (playableUnitSelected() /*&& !_parentState->hasScrolled()*/)
 		{
 			bool isCtrlPressed = (SDL_GetModState() & KMOD_CTRL) != 0;
 			bool isShiftPressed = (SDL_GetModState() & KMOD_SHIFT) != 0;

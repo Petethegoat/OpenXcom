@@ -29,6 +29,10 @@
 #include "../Savegame/SavedBattleGame.h"
 #include "../Mod/Mod.h"
 #include "../Mod/RuleInterface.h"
+#ifdef __MOBILE__
+#include "../Engine/Options.h"
+#endif
+
 
 namespace OpenXcom
 {
@@ -66,6 +70,11 @@ PrimeGrenadeState::PrimeGrenadeState(BattleAction *action, bool inInventoryView,
 	{
 		_game->getSavedGame()->getSavedBattle()->setPaletteByDepth(this);
 	}
+#ifdef __MOBILE__
+	_outside = new InteractiveSurface(Options::baseXResolution, Options::baseYResolution, 0, 0);
+	_outside->onMouseClick((ActionHandler)&PrimeGrenadeState::outsideClick);
+	add(_outside);
+#endif
 
 	Element *grenadeBackground = _game->getMod()->getInterface("battlescape")->getElement("grenadeBackground");
 
@@ -167,6 +176,19 @@ void PrimeGrenadeState::btnClick(Action *action)
 		_game->popState();
 		if (!_inInventoryView) _game->popState();
 	}
+#ifdef __MOBILE__
+	action->getDetails()->type = SDL_FIRSTEVENT;
+#endif
 }
+#ifdef __MOBILE__
+void PrimeGrenadeState::outsideClick(Action *action)
+{
+	if (!_inInventoryView)
+	{
+		_action->value = -1;
+	}
+	_game->popState();
+}
+#endif
 
 }

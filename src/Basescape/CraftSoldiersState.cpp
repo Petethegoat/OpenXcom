@@ -39,6 +39,9 @@
 #include "../Mod/Armor.h"
 #include "../Mod/RuleInterface.h"
 
+#include "../Engine/Timer.h"
+#include "../Engine/Logger.h"
+
 namespace OpenXcom
 {
 
@@ -49,7 +52,10 @@ namespace OpenXcom
  * @param craft ID of the selected craft.
  */
 CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
-		:  _base(base), _craft(craft), _otherCraftColor(0), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL)
+		:  _base(base), _craft(craft), _otherCraftColor(0), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL), _pselSoldier(-1), _wasDragging(false)
+#ifdef __MOBILE__
+	, _clickGuard(false)
+#endif
 {
 	// Create objects
 	_window = new Window(this, 320, 200, 0, 0);
@@ -144,6 +150,16 @@ CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
 	_lstSoldiers->onRightArrowClick((ActionHandler)&CraftSoldiersState::lstItemsRightArrowClick);
 	_lstSoldiers->onMouseClick((ActionHandler)&CraftSoldiersState::lstSoldiersClick, 0);
 	_lstSoldiers->onMousePress((ActionHandler)&CraftSoldiersState::lstSoldiersMousePress);
+	_lstSoldiers->onMouseWheel((ActionHandler)&CraftSoldiersState::lstSoldiersMouseWheel);
+
+	_lstSoldiers->setDragScrollable(false);
+	_lstSoldiers->onMouseOver((ActionHandler)&CraftSoldiersState::lstSoldiersMouseOver);
+
+#ifdef __MOBILE__
+	_longPressTimer = new Timer(Options::longPressDuration, false);
+	_longPressTimer->onTimer((StateHandler)&CraftSoldiersState::lstSoldiersLongPress);
+	_lstSoldiers->onMouseRelease((ActionHandler)&CraftSoldiersState::lstSoldiersMouseRelease);
+#endif
 }
 
 /**
@@ -156,6 +172,9 @@ CraftSoldiersState::~CraftSoldiersState()
 	{
 		delete(*it);
 	}
+#ifdef __MOBILE__
+	delete _longPressTimer;
+#endif
 }
 
 /**
@@ -332,7 +351,9 @@ void CraftSoldiersState::moveSoldierUp(Action *action, unsigned int row, bool ma
 		_base->getSoldiers()->at(row - 1) = s;
 		if (row != _lstSoldiers->getScroll())
 		{
-			SDL_WarpMouse(action->getLeftBlackBand() + action->getXMouse(), action->getTopBlackBand() + action->getYMouse() - static_cast<Uint16>(8 * action->getYScale()));
+#ifndef __MOBILE__
+			SDL_WarpMouseInWindow(NULL, (action->getLeftBlackBand() + action->getXMouse()), (action->getTopBlackBand() + action->getYMouse() - static_cast<Uint16>(8 * action->getYScale())));
+#endif
 		}
 		else
 		{
@@ -385,7 +406,10 @@ void CraftSoldiersState::moveSoldierDown(Action *action, unsigned int row, bool 
 		_base->getSoldiers()->at(row + 1) = s;
 		if (row != _lstSoldiers->getVisibleRows() - 1 + _lstSoldiers->getScroll())
 		{
-			SDL_WarpMouse(action->getLeftBlackBand() + action->getXMouse(), action->getTopBlackBand() + action->getYMouse() + static_cast<Uint16>(8 * action->getYScale()));
+			//assert (0 && "FIXME");
+#ifndef __MOBILE__
+			SDL_WarpMouseInWindow(NULL, action->getLeftBlackBand() + action->getXMouse(), action->getTopBlackBand() + action->getYMouse() + static_cast<Uint16>(8 * action->getYScale()));
+#endif
 		}
 		else
 		{
@@ -401,6 +425,18 @@ void CraftSoldiersState::moveSoldierDown(Action *action, unsigned int row, bool 
  */
 void CraftSoldiersState::lstSoldiersClick(Action *action)
 {
+	if (_wasDragging)
+	{
+		_wasDragging = false;
+		return;
+	}
+#ifdef __MOBILE__
+	if (_clickGuard)
+	{
+		_clickGuard = false;
+		return;
+	}
+#endif
 	double mx = action->getAbsoluteXMouse();
 	if (mx >= _lstSoldiers->getArrowsLeftEdge() && mx < _lstSoldiers->getArrowsRightEdge())
 	{
@@ -449,33 +485,123 @@ void CraftSoldiersState::lstSoldiersClick(Action *action)
 
 /**
  * Handles the mouse-wheels on the arrow-buttons.
+ * Also, starts the long-press timer.
  * @param action Pointer to an action.
  */
 void CraftSoldiersState::lstSoldiersMousePress(Action *action)
+{
+	unsigned int row = _lstSoldiers->getSelectedRow();
+	if (row < _base->getSoldiers()->size())
+	{
+		_pselSoldier = row;
+#ifdef __MOBILE__
+		_longPressTimer->start();
+#endif
+	}
+}
+
+/**
+ * Handles the mouse-wheels on the arrow-buttons.
+ * @param action Pointer to an action.
+ */
+void CraftSoldiersState::lstSoldiersMouseWheel(Action *action)
 {
 	if (Options::changeValueByMouseWheel == 0)
 		return;
 	unsigned int row = _lstSoldiers->getSelectedRow();
 	size_t numSoldiers = _base->getSoldiers()->size();
-	if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP &&
-		row > 0)
+	const SDL_Event &ev(*action->getDetails());
+	if (ev.type == SDL_MOUSEWHEEL)
 	{
-		if (action->getAbsoluteXMouse() >= _lstSoldiers->getArrowsLeftEdge() &&
-			action->getAbsoluteXMouse() <= _lstSoldiers->getArrowsRightEdge())
+		if (ev.wheel.y > 0 && row > 0)
 		{
-			moveSoldierUp(action, row);
+			if (action->getAbsoluteXMouse() >= _lstSoldiers->getArrowsLeftEdge() &&
+				action->getAbsoluteXMouse() <= _lstSoldiers->getArrowsRightEdge())
+			{
+				moveSoldierUp(action, row);
+			}
 		}
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN &&
-			 0 < numSoldiers && INT_MAX >= numSoldiers && row < numSoldiers - 1)
-	{
-		if (action->getAbsoluteXMouse() >= _lstSoldiers->getArrowsLeftEdge() &&
-			action->getAbsoluteXMouse() <= _lstSoldiers->getArrowsRightEdge())
+		else if (ev.wheel.y < 0 && 0 < numSoldiers && row + 1 < numSoldiers)
 		{
-			moveSoldierDown(action, row);
+			if (action->getAbsoluteXMouse() >= _lstSoldiers->getArrowsLeftEdge() &&
+				action->getAbsoluteXMouse() <= _lstSoldiers->getArrowsRightEdge())
+			{
+				moveSoldierDown(action, row);
+			}
 		}
 	}
 }
+
+/**
+ * Handles soldier drag-dropping in craft equipment screen.
+ * @param action Pointer to an action.
+ */
+void CraftSoldiersState::lstSoldiersMouseOver(Action *action)
+{
+	unsigned int row = _lstSoldiers->getSelectedRow();
+	if (_pselSoldier < 0)
+	{
+		if (row < _base->getSoldiers()->size())
+		{
+			_pselSoldier = row;
+		}
+		return;
+	}
+	if (Options::dragSoldierReorder) {
+		const SDL_Event *ev = action->getDetails();
+		if ((ev->type == SDL_MOUSEMOTION) && (ev->motion.state) &&
+											 (_lstSoldiers->getSelectedRow() < _base->getSoldiers()->size()))
+		{
+			int delta = row - _pselSoldier;
+			{
+				if (delta > 0) {
+					_wasDragging = true;
+					moveSoldierDown(action, _pselSoldier);
+				}
+				if (delta < 0) {
+					_wasDragging = true;
+					moveSoldierUp(action, _pselSoldier);
+				}
+			}
+			_pselSoldier = row;
+		}
+	}
+}
+
+#ifdef __MOBILE__
+/**
+ * Pokes the timer.
+ */
+void CraftSoldiersState::think()
+{
+	State::think();
+	_clickGuard = false;
+	_longPressTimer->think(this, 0);
+}
+
+/**
+ * Stops the long-press timer.
+ * @param action Pointer to an action.
+ */
+void CraftSoldiersState::lstSoldiersMouseRelease(Action *action)
+{
+	_longPressTimer->stop();
+}
+
+/**
+ * Emulates right-clicking.
+ */
+void CraftSoldiersState::lstSoldiersLongPress()
+{
+	_longPressTimer->stop();
+	if (_wasDragging)
+	{
+		return;
+	}
+	_clickGuard = true;
+	_game->pushState(new SoldierInfoState(_base, _pselSoldier));
+}
+#endif
 
 /**
  * De-assign all soldiers from all craft located in the base (i.e. not out on a mission).

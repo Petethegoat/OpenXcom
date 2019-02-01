@@ -32,6 +32,7 @@ class Music
 private:
 	Mix_Music *_music;
 	SDL_RWops *_rwops;
+	std::string _filename;
 public:
 	/// Creates a blank music track.
 	Music();

@@ -77,21 +77,18 @@ Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0
 		initAudio();
 	}
 
-	// trap the mouse inside the window
-	SDL_WM_GrabInput(Options::captureMouse);
-
-	// Set the window icon
-	CrossPlatform::setWindowIcon(103, "openxcom.png");
-
-	// Set the window caption
-	SDL_WM_SetCaption(title.c_str(), 0);
-
 	// Set up unicode
-	SDL_EnableUNICODE(1);
 	Unicode::getUtf8Locale();
 
 	// Create display
 	_screen = new Screen();
+
+	// Actually, you can create a window icon only after the screen is here
+	CrossPlatform::setWindowIcon(103, "openxcom.png", _screen->getWindow());
+
+	// And only then you can think about grabbing the mouse
+	SDL_bool captureMouse = Options::captureMouse? SDL_TRUE : SDL_FALSE;
+	SDL_SetWindowGrab(_screen->getWindow(), captureMouse);
 
 	// Create cursor
 	_cursor = new Cursor(9, 13);
@@ -145,8 +142,28 @@ void Game::run()
 	enum ApplicationState { RUNNING = 0, SLOWED = 1, PAUSED = 2 } runningState = RUNNING;
 	static const ApplicationState kbFocusRun[4] = { RUNNING, RUNNING, SLOWED, PAUSED };
 	static const ApplicationState stateRun[4] = { SLOWED, PAUSED, PAUSED, PAUSED };
-	// this will avoid processing SDL's resize event on startup, workaround for the heap allocation error it causes.
-	bool startupEvent = Options::allowResize;
+
+	int numTouchDevices = SDL_GetNumTouchDevices();
+	if (!numTouchDevices)
+	{
+		// Workaround for Macs that don't report their touch capabilities,
+		// but still report finger presses for their touchpads.
+		SDL_EventState(SDL_FINGERDOWN, SDL_IGNORE);
+		SDL_EventState(SDL_FINGERUP, SDL_IGNORE);
+		SDL_EventState(SDL_FINGERMOTION, SDL_IGNORE);
+		SDL_EventState(SDL_MULTIGESTURE, SDL_IGNORE);
+		// FIXME: Adjust scaling so that there's no need for these lines.
+	}
+	std::vector<SDL_TouchID> touchDevices;
+	for(int i = 0; i < numTouchDevices; ++i)
+	{
+		touchDevices.push_back(SDL_GetTouchDevice(i));
+	}
+	bool hadFingerUp = true;
+	bool isTouched = false;
+	SDL_Event reservedMUpEvent;
+	Log(LOG_INFO) << "SDL reports this number of touch devices present: " << SDL_GetNumTouchDevices();
+
 	while (!_quit)
 	{
 		Uint32 timeFrameStarted = SDL_GetTicks();
@@ -177,6 +194,36 @@ void Game::run()
 			_states.back()->handle(&action);
 		}
 
+		// This is a hack to check if we've missed the fingerUp event.
+		// Sometimes the fingerUp event doesn't get sent, which causes all sorts of
+		// fun things, like stuck buttons and whatnot. This code tries to check if
+		// there should have been such event (i.e. there's no fingers present on the
+		// touchscreen) and sends the appropriate event.
+		// Then again, if the fingerUp is not registered by SDL, then we're screwed.
+		isTouched = false;
+		if (Options::fakeEvents)
+		{
+			if (!hadFingerUp)
+			{
+				isTouched = CrossPlatform::getPointerState(0, 0) > 0;
+				if (!isTouched)
+				{
+					// NOTE: This code only sends ONE mousebuttonup event. May be a source of bugs.
+					// We shouldn't end up here, but whatever.
+					reservedMUpEvent.type = SDL_MOUSEBUTTONUP;
+					if (Options::logTouch)
+					{
+						Log(LOG_INFO) << "Sending fake mouseButtonUp event; event details: x: " << reservedMUpEvent.button.x << ", y: " << reservedMUpEvent.button.y;
+					}
+					Action fakeAction = Action(&reservedMUpEvent, _screen->getXScale(), _screen->getYScale(), _screen->getCursorTopBlackBand(), _screen->getCursorLeftBlackBand());
+					// Screen and fpsCounter don't care for our mouse events.
+					_cursor->handle(&fakeAction);
+					_states.back()->handle(&fakeAction);
+					hadFingerUp = true;
+				}
+			}
+		}
+
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
@@ -187,6 +234,145 @@ void Game::run()
 				case SDL_QUIT:
 					quit();
 					break;
+				/* Don't pause/resume twice, let Music handle the music */
+				case SDL_APP_WILLENTERBACKGROUND:
+					Music::pause();
+					// Workaround for SDL2_mixer bug https://bugzilla.libsdl.org/show_bug.cgi?id=2480
+					SDL_LockAudio();
+					// Probably won't do a thing, but still
+					runningState = PAUSED;
+					break;
+				case SDL_APP_WILLENTERFOREGROUND:
+					runningState = RUNNING;
+					// Workaround for SDL2_mixer bug https://bugzilla.libsdl.org/show_bug.cgi?id=2480
+					SDL_UnlockAudio();
+					Music::resume();
+					break;
+				/* Watch for these messages for debugging purposes */
+				case SDL_APP_LOWMEMORY:
+					Log(LOG_WARNING) << "Warning! We're low on memory! Better make a backup!";
+					break;
+				case SDL_APP_TERMINATING:
+					Log(LOG_WARNING) << "The OS is not happy with us! We're gonna die!";
+					break;
+				// Process touch-related events first, because it's all a terrible hack and I'm a terrible person. --sfalexrog
+				// OpenXcom is designed around using mouse as an input device, so it doesn't really care about finger events.
+				// But that shouldn't be a problem, since SDL2 already has mouse emulation built in! So what's all that code about?
+				// Well, actually the SDL2 code tries to be "smart" about the position of mouse pointer, and scales it to fit
+				// into the "virtual viewport". And OpenXcom, being based on SDL1.2, already does it itself, which causes all sorts
+				// of problems. Also, SDL2's code works fine while you have only one finger on the screen, less so when you're
+				// taking advantage of your multitouch display. This code only creates events for the first finger on the screen,
+				// ignoring all others (which also might be not a good thing, since if you're using multitouch, you probably don't
+				// want to have any single finger input anyway, but oh well.)
+				case SDL_FINGERDOWN:
+					// Begin tracking our finger.
+					hadFingerUp = false;
+					[[gnu::fallthrough]];
+				case SDL_FINGERUP:
+					// Okay, maybe we don't need to ask twice.
+					// We don't set hadFingerUp here because it's set down the path.
+					[[gnu::fallthrough]];
+				case SDL_FINGERMOTION:
+				{
+					// For now we're translating events from the first finger into mouse events.
+					// FIXME: Note that we're using SDL_FingerID of 0 to specify this "first finger".
+					// This will likely break with things like active styluses.
+					SDL_Event fakeEvent;
+
+					fakeEvent.type = SDL_FIRSTEVENT; // This one is used internally by SDL, for us it's an empty event we don't handle
+					if ((_event.type == SDL_FINGERMOTION) ||
+						(_event.type == SDL_FINGERDOWN) ||
+						(_event.type == SDL_FINGERUP))
+					{
+						if (Options::logTouch)
+						{
+							Log(LOG_INFO) << "Got a TouchFinger event; details: ";
+							switch (_event.type)
+							{
+								case SDL_FINGERMOTION:
+									Log(LOG_INFO) << " type: SDL_FINGERMOTION";
+									break;
+								case SDL_FINGERDOWN:
+									Log(LOG_INFO) << " type: SDL_FINGERDOWN";
+									break;
+								case SDL_FINGERUP:
+									Log(LOG_INFO) << " type: SDL_FINGERUP";
+									break;
+								default:
+									Log(LOG_INFO) << " type: UNKNOWN!";
+							}
+							Log(LOG_INFO) << " timestamp: " << _event.tfinger.timestamp << ", touchID: " << _event.tfinger.touchId << ", fingerID: " << _event.tfinger.fingerId;
+							Log(LOG_INFO) << " x: " << _event.tfinger.x << ", y: " << _event.tfinger.y << ", dx: " << _event.tfinger.dx << ", dy: " << _event.tfinger.dy;
+						}
+						// FIXME: Better check the truthness of the following sentence!
+						// On Android, fingerId of 0 corresponds to the first finger on the screen.
+						// Finger index of 0 _should_ mean the first finger on the screen,
+						// but that might be platform-dependent as well.
+						SDL_Finger *finger = SDL_GetTouchFinger(_event.tfinger.touchId, 0);
+						// If the event was fired when the user lifted his finger, we might not get an SDL_Finger struct,
+						// because the finger's not even there. So we should also check if the corresponding touchscreen
+						// no longer registers any presses.
+						int numFingers = SDL_GetNumTouchFingers(_event.tfinger.touchId);
+						if ((numFingers == 0) || (finger && (finger->id == _event.tfinger.fingerId)))
+						{
+							// Note that we actually handle fingermotion, so emulating it may cause bugs.
+							if (_event.type == SDL_FINGERMOTION)
+							{
+								fakeEvent.type = SDL_MOUSEMOTION;
+								fakeEvent.motion.x = _event.tfinger.x * Options::displayWidth;
+								fakeEvent.motion.y = _event.tfinger.y * Options::displayHeight;
+								fakeEvent.motion.xrel = _event.tfinger.dx * Options::displayWidth;
+								fakeEvent.motion.yrel = _event.tfinger.dy * Options::displayHeight;
+								fakeEvent.motion.timestamp = _event.tfinger.timestamp;
+								fakeEvent.motion.state = SDL_BUTTON(1);
+							}
+							else
+							{
+								if (_event.type == SDL_FINGERDOWN)
+								{
+									fakeEvent.type = SDL_MOUSEBUTTONDOWN;
+									fakeEvent.button.type = SDL_MOUSEBUTTONDOWN;
+									fakeEvent.button.state = SDL_PRESSED;
+								}
+								else
+								{
+									hadFingerUp = true;
+									fakeEvent.type = SDL_MOUSEBUTTONUP;
+									fakeEvent.button.type = SDL_MOUSEBUTTONUP;
+									fakeEvent.button.state = SDL_RELEASED;
+								}
+								fakeEvent.button.timestamp = _event.tfinger.timestamp;
+								fakeEvent.button.x = _event.tfinger.x * Options::displayWidth;
+								fakeEvent.button.y = _event.tfinger.y * Options::displayHeight;
+								fakeEvent.button.button = SDL_BUTTON_LEFT;
+							}
+						}
+
+					}
+					// FIXME: An alternative to this code duplication is very welcome.
+					if (fakeEvent.type != SDL_FIRSTEVENT)
+					{
+						// Preserve current event, we might need it.
+						reservedMUpEvent = fakeEvent;
+						Action fakeAction = Action(&fakeEvent, _screen->getXScale(), _screen->getYScale(), _screen->getCursorTopBlackBand(), _screen->getCursorLeftBlackBand());
+						// Safely ignore _screen and _fpscounter
+						// Might want to update _cursor, though.
+						_cursor->handle(&fakeAction);
+						_states.back()->handle(&fakeAction);
+					}
+				}
+				[[gnu::fallthrough]];
+				case SDL_MULTIGESTURE:
+					if (Options::logTouch)
+					{
+						Log(LOG_INFO) << "Got a MultiGesture event, details:";
+						Log(LOG_INFO) << " timestamp: " << _event.mgesture.timestamp << ", touchID: " << _event.mgesture.touchId;
+						Log(LOG_INFO) << " numFingers: " << _event.mgesture.numFingers << ", x: " << _event.mgesture.x << ", y: " << _event.mgesture.y;
+						Log(LOG_INFO) << " dDist: " << _event.mgesture.dDist << ", dTheta: " << _event.mgesture.dTheta;
+					}
+
+#if 0
+				// SDL2 handles things differently, so this is basically commented out for historical purposes.
 				case SDL_ACTIVEEVENT:
 					switch (reinterpret_cast<SDL_ActiveEvent*>(&_event)->state)
 					{
@@ -222,10 +408,78 @@ void Game::run()
 							startupEvent = false;
 						}
 					}
+#endif
+					break;
+				case SDL_WINDOWEVENT:
+					switch(_event.window.event)
+					{
+						case SDL_WINDOWEVENT_RESIZED:
+							// It should be better to handle SDL_WINDOWEVENT_SIZE_CHANGED, but
+							// it won't tell the new width and height.
+							// New width is in data1, new height is in data2.
+							// Otherwise the code is carbon-copied from SDL1.2 resize code.
+
+							// Okay, if you got this event, this probably means that your window IS resizable.
+							//if (Options::allowResize)
+							{
+								Options::newDisplayWidth = Options::displayWidth = std::max(Screen::ORIGINAL_WIDTH, _event.window.data1);
+								Options::newDisplayHeight = Options::displayHeight = std::max(Screen::ORIGINAL_HEIGHT, _event.window.data2);
+								int dX = 0, dY = 0;
+								Screen::updateScale(Options::battlescapeScale, Options::baseXBattlescape, Options::baseYBattlescape, false);
+								Screen::updateScale(Options::geoscapeScale, Options::baseXGeoscape, Options::baseYGeoscape, false);
+								for (std::list<State*>::iterator i = _states.begin(); i != _states.end(); ++i)
+								{
+									(*i)->resize(dX, dY);
+								}
+								_screen->resetDisplay();
+							}
+							break;
+						case SDL_WINDOWEVENT_FOCUS_LOST:
+							runningState = kbFocusRun[Options::pauseMode];
+							break;
+						case SDL_WINDOWEVENT_FOCUS_GAINED:
+							runningState = RUNNING;
+							break;
+						case SDL_WINDOWEVENT_MINIMIZED:
+						case SDL_WINDOWEVENT_HIDDEN:
+							runningState = stateRun[Options::pauseMode];
+							break;
+						case SDL_WINDOWEVENT_SHOWN:
+						case SDL_WINDOWEVENT_EXPOSED:
+						case SDL_WINDOWEVENT_RESTORED:
+							runningState = RUNNING;
+					}
 					break;
 				case SDL_MOUSEMOTION:
+					// With SDL2 we can have both events from a real mouse
+					// and events from a touch-emulated mouse.
+					// This code should prevent these events from
+					// interfering with each other.
+					if (_event.motion.which == SDL_TOUCH_MOUSEID)
+					{
+						if (Options::logTouch)
+						{
+							Log(LOG_INFO) << "Got a spurious MouseID event; ignoring...";
+						}
+						break;
+					}
+					[[gnu::fallthrough]];
 				case SDL_MOUSEBUTTONDOWN:
 				case SDL_MOUSEBUTTONUP:
+					if (_event.button.which == SDL_TOUCH_MOUSEID)
+					{
+						if (Options::logTouch)
+						{
+							Log(LOG_INFO) << "Got a spurious MouseID event; ignoring...";
+						}
+						break;
+					}
+					[[gnu::fallthrough]];
+				case SDL_MOUSEWHEEL:
+					if (_event.wheel.which == SDL_TOUCH_MOUSEID)
+					{
+						break;
+					}
 					// Skip mouse events if they're disabled
 					if (!_mouseActive) continue;
 					// re-gain focus on mouse-over or keypress.
@@ -240,10 +494,13 @@ void Game::run()
 					if (action.getDetails()->type == SDL_KEYDOWN)
 					{
 						// "ctrl-g" grab input
+						// (Since we're on Android, we're having no ctrl-g
+
 						if (action.getDetails()->key.keysym.sym == SDLK_g && (SDL_GetModState() & KMOD_CTRL) != 0)
 						{
-							Options::captureMouse = (SDL_GrabMode)(!Options::captureMouse);
-							SDL_WM_GrabInput(Options::captureMouse);
+							Options::captureMouse = !Options::captureMouse;
+							SDL_bool captureMouse = Options::captureMouse ? SDL_TRUE : SDL_FALSE;
+							SDL_SetWindowGrab(_screen->getWindow(), captureMouse);
 						}
 						else if (Options::debug)
 						{
@@ -270,6 +527,7 @@ void Game::run()
 			// Process logic
 			_states.back()->think();
 			_fpsCounter->think();
+
 			if (_init)
 			{
 				_fpsCounter->addFrame();
@@ -298,7 +556,7 @@ void Game::run()
 			// Uint32 milliseconds do wrap around in about 49.7 days
 			Uint32 timeFrameEnded = SDL_GetTicks();
 			Uint32 elapsedFrameTime =  timeFrameEnded > timeFrameStarted ? timeFrameEnded - timeFrameStarted : 0;
-			Uint32 nominalFPS = SDL_GetAppState() & SDL_APPINPUTFOCUS ? Options::FPS : Options::FPSInactive;
+			Uint32 nominalFPS = SDL_GetWindowFlags(getScreen()->getWindow()) & SDL_WINDOW_INPUT_FOCUS ? Options::FPS : Options::FPSInactive;
 			Uint32 nominalFrameTime = Options::FPS > 0 ? 1000.0f / nominalFPS : 1;
 			idleTime = elapsedFrameTime > nominalFrameTime ? 0 : nominalFrameTime - elapsedFrameTime;
 			idleTime = idleTime > 100 ? 100 : idleTime;

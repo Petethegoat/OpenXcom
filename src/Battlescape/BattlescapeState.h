@@ -85,11 +85,15 @@ private:
 	bool _mouseMovedOverThreshold;
 	bool _mouseOverIcons;
 	std::string _currentTooltip;
+	float _scrollAccumX, _scrollAccumY;
 	Position _cursorPosition;
 	Uint8 _barHealthColor;
 	bool _autosave;
 	int _numberOfDirectlyVisibleUnits, _numberOfEnemiesTotal, _numberOfEnemiesTotalPlusWounded;
 	Uint8 _indicatorTextColor, _indicatorGreen, _indicatorBlue, _indicatorPurple;
+	bool _hasScrolled;
+	bool _swipeFromSoldier;
+	bool _multiGestureProcess;
 	/// Popups a context sensitive list of actions the user can choose from.
 	void handleItemClick(BattleItem *item, bool rightClick);
 	/// Shifts the red colors of the visible unit buttons backgrounds.
@@ -102,6 +106,13 @@ private:
 	void blinkHealthBar();
 	/// Shows the unit kneel state.
 	void toggleKneelButton(BattleUnit* unit);
+#ifdef __MOBILE__
+	// Scalers for touchscreen
+	float _mouseXScale, _mouseYScale;
+	Surface *_leftWpnActive, *_rightWpnActive;
+	// Timer for long-tapping the screen
+	Timer *_longPressTimer;
+#endif
 public:
 	/// Selects the next soldier.
 	void selectNextPlayerUnit(bool checkReselect = false, bool setReselect = false, bool checkInventory = false, bool checkFOV = true);
@@ -121,10 +132,19 @@ public:
 	void mapOver(Action *action);
 	/// Handler for pressing the map.
 	void mapPress(Action *action);
+	void mapRelease(Action *action);
 	/// Handler for clicking the map.
 	void mapClick(Action *action);
 	/// Handler for entering with mouse to the map surface.
 	void mapIn(Action *action);
+	void fingerMotion(Action *action);
+	void multiGesture(Action *action);
+	/// Handler for buttons
+	void mapKey(Action *action);
+#ifdef __MOBILE__
+	/// Handler for long presses
+	void mapLongPress();
+#endif
 	/// Handler for clicking the Unit Up button.
 	void btnUnitUpClick(Action *action);
 	/// Handler for clicking the Unit Down button.
@@ -237,6 +257,14 @@ public:
 	void btnReserveKneelClick(Action *action);
 	/// Handler for clicking the expend all TUs button.
 	void btnZeroTUsClick(Action *action);
+#ifdef __MOBILE__
+	/// Handler for pressing the expend all TUs button.
+	void btnZeroTUsPress(Action *action);
+	/// Handler for releasing the expend all TUs button.
+	void btnZeroTUsRelease(Action *action);
+	/// Handler for long-pressing the expend all TUs button.
+	void btnZeroTUsLongPress();
+#endif
 	/// Handler for showing tooltip.
 	void txtTooltipIn(Action *action);
 	/// Handler for showing tooltip with extra information (used for medikit-type equipment)
@@ -250,10 +278,14 @@ public:
 	void txtTooltipOut(Action *action);
 	/// Update the resolution settings, we just resized the window.
 	void resize(int &dX, int &dY) override;
+
+	bool hasScrolled() const;
 	/// Move the mouse back to where it started after we finish drag scrolling.
 	void stopScrolling(Action *action);
 	/// Autosave next turn.
 	void autosave();
+	/// Don't do anything and consume the event.
+	void consumeEvent(Action *action);
 };
 
 }

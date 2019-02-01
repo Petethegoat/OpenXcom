@@ -54,6 +54,7 @@
 #include "BattlescapeState.h"
 #include "BattlescapeGenerator.h"
 #include "TileEngine.h"
+#include "../Engine/CrossPlatform.h"
 #include "../Mod/RuleInterface.h"
 #include "../Ufopaedia/Ufopaedia.h"
 
@@ -1122,11 +1123,11 @@ void InventoryState::refreshMouse()
 {
 	// send a mouse motion event to refresh any hover actions
 	int x, y;
-	SDL_GetMouseState(&x, &y);
-	SDL_WarpMouse(x+1, y);
+	CrossPlatform::getPointerState(&x, &y);
+	SDL_WarpMouseInWindow(NULL, x+1, y);
 
 	// move the mouse back to avoid cursor creep
-	SDL_WarpMouse(x, y);
+	SDL_WarpMouseInWindow(NULL, x, y);
 }
 
 void InventoryState::onClearInventory(Action *)

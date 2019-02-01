@@ -91,6 +91,8 @@ public:
 	void lstEquipmentRightArrowClick(Action *action);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstEquipmentMousePress(Action *action);
+	/// Handler for mousewheel events.
+	void lstEquipmentMouseWheel(Action *action);
 	/// Moves an item to the base.
 	void moveLeft();
 	/// Moves the given number of items to the base.

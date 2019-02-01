@@ -339,10 +339,29 @@ void ArrowButton::mousePress(Action *action, State *state)
 		{
 			_timer->start();
 		}
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELUP) _list->scrollUp(false, true);
-		else if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN) _list->scrollDown(false, true);
 	}
 }
+/**
+ * Handles the mousewheel scrolling.
+ * @param action Pointer to an action.
+ * @param state State that the action handlers belong to.
+ */
+void ArrowButton::mouseWheel(Action *action, State *state)
+{
+	ImageButton::mouseWheel(action, state);
+	const SDL_Event &ev(*action->getDetails());
+	if (ev.type == SDL_MOUSEWHEEL) // FIXME: WHY DO WE EVEN GET NULL POINTERS?!
+	{
+		if (_list)
+		{
+			if (ev.wheel.y > 0)
+				_list->scrollUp(false, true);
+			else
+				_list->scrollDown(false, true);
+		}
+	}
+}
+
 
 /*
  * Stops scrolling the associated list.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 OpenXcom Developers.
+ * Copyright 2010-2015 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -33,7 +33,7 @@
 #include "../Mod/RuleInterface.h"
 #include "../Engine/Options.h"
 #include "../Engine/Screen.h"
-#include <algorithm>
+#include "../Engine/CrossPlatform.h"
 
 namespace OpenXcom
 {
@@ -226,7 +226,9 @@ void MiniMapView::mousePress(Action *action, State *state)
 	{
 		_isMouseScrolling = true;
 		_isMouseScrolled = false;
-		SDL_GetMouseState(&_xBeforeMouseScrolling, &_yBeforeMouseScrolling);
+		//CrossPlatform::getPointerState(&_xBeforeMouseScrolling, &_yBeforeMouseScrolling);
+		_xBeforeMouseScrolling = action->getDetails()->button.x;
+		_yBeforeMouseScrolling = action->getDetails()->button.y;
 		_posBeforeMouseScrolling = _camera->getCenterPosition();
 		if (!Options::battleDragScrollInvert && _cursorPosition.z == 0)
 		{
@@ -257,7 +259,7 @@ void MiniMapView::mouseClick(Action *action, State *state)
 	// (this part handles the release if it is missed and now an other button is used)
 	if (_isMouseScrolling) {
 		if (action->getDetails()->button.button != Options::battleDragScrollButton
-		&& 0==(SDL_GetMouseState(0,0)&SDL_BUTTON(Options::battleDragScrollButton))) { // so we missed again the mouse-release :(
+		&& 0==(CrossPlatform::getPointerState(0,0)&SDL_BUTTON(Options::battleDragScrollButton))) { // so we missed again the mouse-release :(
 			// Check if we have to revoke the scrolling, because it was too short in time, so it was a click
 			if ((!_mouseMovedOverThreshold) && ((int)(SDL_GetTicks() - _mouseScrollingStartTime) <= (Options::dragScrollTimeTolerance)))
 				{ _camera->centerOnPosition(_posBeforeMouseScrolling); _redraw = true; }
@@ -326,7 +328,7 @@ void MiniMapView::mouseOver(Action *action, State *state)
 		// the mouse-release event is missed for any reason.
 		// However if the SDL is also missed the release event, then it is to no avail :(
 		// (checking: is the dragScroll-mouse-button still pressed?)
-		if (0==(SDL_GetMouseState(0,0)&SDL_BUTTON(Options::battleDragScrollButton))) { // so we missed again the mouse-release :(
+		if (0==(CrossPlatform::getPointerState(0,0)&SDL_BUTTON(Options::battleDragScrollButton))) { // so we missed again the mouse-release :(
 			// Check if we have to revoke the scrolling, because it was too short in time, so it was a click
 			if ((!_mouseMovedOverThreshold) && ((int)(SDL_GetTicks() - _mouseScrollingStartTime) <= (Options::dragScrollTimeTolerance)))
 			{
@@ -339,15 +341,15 @@ void MiniMapView::mouseOver(Action *action, State *state)
 		}
 
 		_isMouseScrolled = true;
-
+#ifndef __MOBILE__
 		if (Options::touchEnabled == false)
 		{
 			// Set the mouse cursor back
 			SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
-			SDL_WarpMouse(_xBeforeMouseScrolling, _yBeforeMouseScrolling);
+			//SDL_WarpMouseInWindow(NULL, _xBeforeMouseScrolling, _yBeforeMouseScrolling);
 			SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
 		}
-
+#endif
 		// Check the threshold
 		_totalMouseMoveX += action->getDetails()->motion.xrel;
 		_totalMouseMoveY += action->getDetails()->motion.yrel;
@@ -445,8 +447,12 @@ void MiniMapView::stopScrolling(Action *action)
 {
 	if (!Options::battleDragScrollInvert)
 	{
-		SDL_WarpMouse(_cursorPosition.x, _cursorPosition.y);
+		SDL_WarpMouseInWindow(NULL, _cursorPosition.x, _cursorPosition.y);
+#ifndef __MOBILE__
 		action->setMouseAction(_cursorPosition.x/action->getXScale(), _cursorPosition.y/action->getYScale(), 0, 0);
+#else
+		action->setMouseAction(_xBeforeMouseScrolling, _yBeforeMouseScrolling, 0, 0);
+#endif
 	}
 	// reset our "mouse position stored" flag
 	_cursorPosition.z = 0;

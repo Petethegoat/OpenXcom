@@ -21,6 +21,9 @@
 #include <SDL.h>
 #include <string>
 #include <vector>
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 #include <memory>
 
 namespace OpenXcom
@@ -92,17 +95,37 @@ namespace CrossPlatform
 	/// Reads in a file
 	std::unique_ptr<std::istream> readFile(const std::string& filename);
 	/// Flashes the game window.
-	void flashWindow();
+	void flashWindow(SDL_Window *winPtr);
 	/// Gets the DOS-style executable path.
 	std::string getDosPath();
 	/// Sets the window icon.
-	void setWindowIcon(int winResource, const std::string &unixPath);
+	void setWindowIcon(int winResource, const std::string &unixPath, SDL_Window *winPtr);
+	/// Displays the data finding dialog.
+	void findDirDialog();
+	/// Sets system UI visibility
+	void setSystemUI();
 	/// Produces a stack trace.
 	void stackTrace(void *ctx);
 	/// Produces a quick timestamp.
 	std::string now();
 	/// Produces a crash dump.
 	void crashDump(void *ex, const std::string &err);
+
+#ifdef __ANDROID__
+	/// This function is called from Java.
+#ifdef __cplusplus
+extern "C" {
+#endif
+	void Java_org_libsdl_openxcom_OpenXcom_nativeSetPaths(JNIEnv* env, jclass cls, jstring gamePath, jstring savePath, jstring confPath);
+#ifdef __cplusplus
+}
+#endif
+#endif
+	/// Gets system version
+	int getSystemVersion();
+        /// Gets pointing device status (emulates SDL_GetMouseState)
+        int getPointerState(int *x, int *y);
+
 	/// Log something.
 	void log(int, const std::ostringstream& msg);
 	/// The log file name

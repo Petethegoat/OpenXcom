@@ -18,11 +18,12 @@
  */
 #include "InteractiveSurface.h"
 #include "Action.h"
+#include "CrossPlatform.h"
 
 namespace OpenXcom
 {
 
-const SDLKey InteractiveSurface::SDLK_ANY = (SDLKey)-1; // using an unused keycode to represent an "any key"
+const SDL_Keycode InteractiveSurface::SDLK_ANY = (SDL_Keycode)-1; // using an unused keycode to represent an "any key"
 
 /**
  * Sets up a blank interactive surface with the specified size and position.
@@ -31,7 +32,7 @@ const SDLKey InteractiveSurface::SDLK_ANY = (SDLKey)-1; // using an unused keyco
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-InteractiveSurface::InteractiveSurface(int width, int height, int x, int y) : Surface(width, height, x, y), _buttonsPressed(0), _in(0), _over(0), _out(0), _isHovered(false), _isFocused(true), _listButton(false), _tftdMode(false)
+InteractiveSurface::InteractiveSurface(int width, int height, int x, int y) : Surface(width, height, x, y), _buttonsPressed(0), _in(0), _over(0), _out(0), _fingerMotion(0), _multiGesture(0), _wheel(NULL), _isHovered(false), _isFocused(true), _listButton(false), _tftdMode(false)
 {
 }
 
@@ -114,6 +115,15 @@ void InteractiveSurface::handle(Action *action, State *state)
 	{
 		action->setMouseAction(action->getDetails()->button.x, action->getDetails()->button.y, getX(), getY());
 	}
+	else if (action->getDetails()->type == SDL_MOUSEWHEEL)
+	{
+		// wheel.x and wheel.y is the amount scrolled, not the coordinates... ouch.
+		int mouseX, mouseY;
+		CrossPlatform::getPointerState(&mouseX, &mouseY);
+		mouseX = mouseX;
+		mouseY = mouseY;
+		action->setMouseAction(mouseX, mouseY, getX(), getY());
+	}
 	else if (action->getDetails()->type == SDL_MOUSEMOTION)
 	{
 		action->setMouseAction(action->getDetails()->motion.x, action->getDetails()->motion.y, getX(), getY());
@@ -131,7 +141,7 @@ void InteractiveSurface::handle(Action *action, State *state)
 			}
 			if (_listButton && action->getDetails()->type == SDL_MOUSEMOTION)
 			{
-				_buttonsPressed = SDL_GetMouseState(0, 0);
+				_buttonsPressed = CrossPlatform::getPointerState(0, 0);
 				for (Uint8 i = 1; i <= NUM_BUTTONS; ++i)
 				{
 					if (isButtonPressed(i))
@@ -173,6 +183,13 @@ void InteractiveSurface::handle(Action *action, State *state)
 			mousePress(action, state);
 		}
 	}
+	else if (action->getDetails()->type == SDL_MOUSEWHEEL)
+	{
+		if (_isHovered)
+		{
+			mouseWheel(action, state);
+		}
+	}
 	else if (action->getDetails()->type == SDL_MOUSEBUTTONUP)
 	{
 		if (isButtonPressed(action->getDetails()->button.button))
@@ -185,6 +202,14 @@ void InteractiveSurface::handle(Action *action, State *state)
 			}
 		}
 	}
+	else if (action->getDetails()->type == SDL_FINGERMOTION)
+	{
+		fingerMotion(action, state);
+	}
+	else if (action->getDetails()->type == SDL_MULTIGESTURE)
+	{
+		multiGesture(action, state);
+	}
 
 	if (_isFocused)
 	{
@@ -195,6 +220,10 @@ void InteractiveSurface::handle(Action *action, State *state)
 		else if (action->getDetails()->type == SDL_KEYUP)
 		{
 			keyboardRelease(action, state);
+		}
+		else if (action->getDetails()->type == SDL_TEXTINPUT)
+		{
+			textInput(action, state);
 		}
 	}
 }
@@ -360,8 +389,8 @@ void InteractiveSurface::mouseOut(Action *action, State *state)
  */
 void InteractiveSurface::keyboardPress(Action *action, State *state)
 {
-	std::map<SDLKey, ActionHandler>::iterator allHandler = _keyPress.find(SDLK_ANY);
-	std::map<SDLKey, ActionHandler>::iterator oneHandler = _keyPress.find(action->getDetails()->key.keysym.sym);
+	std::map<SDL_Keycode, ActionHandler>::iterator allHandler = _keyPress.find((SDL_Keycode)SDLK_ANY);
+	std::map<SDL_Keycode, ActionHandler>::iterator oneHandler = _keyPress.find(action->getDetails()->key.keysym.sym);
 	if (allHandler != _keyPress.end())
 	{
 		ActionHandler handler = allHandler->second;
@@ -385,8 +414,8 @@ void InteractiveSurface::keyboardPress(Action *action, State *state)
  */
 void InteractiveSurface::keyboardRelease(Action *action, State *state)
 {
-	std::map<SDLKey, ActionHandler>::iterator allHandler = _keyRelease.find(SDLK_ANY);
-	std::map<SDLKey, ActionHandler>::iterator oneHandler = _keyRelease.find(action->getDetails()->key.keysym.sym);
+	std::map<SDL_Keycode, ActionHandler>::iterator allHandler = _keyRelease.find((SDL_Keycode)SDLK_ANY);
+	std::map<SDL_Keycode, ActionHandler>::iterator oneHandler = _keyRelease.find(action->getDetails()->key.keysym.sym);
 	if (allHandler != _keyRelease.end())
 	{
 		ActionHandler handler = allHandler->second;
@@ -399,6 +428,35 @@ void InteractiveSurface::keyboardRelease(Action *action, State *state)
 		ActionHandler handler = oneHandler->second;
 		(state->*handler)(action);
 	}
+}
+
+void InteractiveSurface::fingerMotion(Action *action, State *state)
+{
+	if (_fingerMotion != 0)
+	{
+		(state->*_fingerMotion)(action);
+	}
+}
+
+void InteractiveSurface::multiGesture(Action *action, State *state)
+{
+	if (_multiGesture != 0)
+	{
+		(state->*_multiGesture)(action);
+	}
+}
+
+void InteractiveSurface::mouseWheel(Action *action, State *state)
+{
+	if (_wheel != NULL)
+	{
+		(state->*_wheel)(action);
+	}
+}
+
+void InteractiveSurface::textInput(Action *action, State *state)
+{
+	//TODO: do nothing?
 }
 
 /**
@@ -484,7 +542,7 @@ void InteractiveSurface::onMouseOut(ActionHandler handler)
  * @param handler Action handler.
  * @param key Keyboard button to check for (note: ignores key modifiers). Set to 0 for any key.
  */
-void InteractiveSurface::onKeyboardPress(ActionHandler handler, SDLKey key)
+void InteractiveSurface::onKeyboardPress(ActionHandler handler, SDL_Keycode key)
 {
 	if (handler != 0)
 	{
@@ -501,7 +559,7 @@ void InteractiveSurface::onKeyboardPress(ActionHandler handler, SDLKey key)
  * @param handler Action handler.
  * @param key Keyboard button to check for (note: ignores key modifiers). Set to 0 for any key.
  */
-void InteractiveSurface::onKeyboardRelease(ActionHandler handler, SDLKey key)
+void InteractiveSurface::onKeyboardRelease(ActionHandler handler, SDL_Keycode key)
 {
 	if (handler != 0)
 	{
@@ -511,6 +569,21 @@ void InteractiveSurface::onKeyboardRelease(ActionHandler handler, SDLKey key)
 	{
 		_keyRelease.erase(key);
 	}
+}
+
+void InteractiveSurface::onFingerMotion(ActionHandler handler)
+{
+	_fingerMotion = handler;
+}
+
+void InteractiveSurface::onMultiGesture(ActionHandler handler)
+{
+	_multiGesture = handler;
+}
+
+void InteractiveSurface::onMouseWheel(ActionHandler handler)
+{
+	_wheel = handler;
 }
 
 /**

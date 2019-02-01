@@ -20,6 +20,7 @@
 #include <cmath>
 #include <SDL.h>
 #include "../Engine/Action.h"
+#include "../Engine/Options.h"
 
 namespace OpenXcom
 {
@@ -83,6 +84,12 @@ Uint8 Cursor::getColor() const
  */
 void Cursor::draw()
 {
+	if (!Options::showCursor)
+	{
+		//don't paint the cursor
+		return;
+	}
+
 	Surface::draw();
 	Uint8 color = _color;
 	int x1 = 0, y1 = 0, x2 = getWidth() - 1, y2 = getHeight() - 1;

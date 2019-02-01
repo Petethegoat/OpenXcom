@@ -43,7 +43,7 @@ public:
 	/// Initializes an all-black palette.
 	void initBlack();
 	/// Loads the colors from an existing palette.
-	void copyFrom(Palette *srcPal);
+	void copyFrom(const Palette *srcPal);
 	// Gets a certain color from the palette.
 	SDL_Color *getColors(int offset = 0) const;
 	// Gets a number of colors in the palette.
@@ -56,7 +56,7 @@ public:
 	void setColor(int index, int r, int g, int b);
 	void copyColor(int index, int r, int g, int b);
 	/// Converts a given color into a RGBA color value.
-	static Uint32 getRGBA(SDL_Color* pal, Uint8 color);
+	static Uint32 getRGBA(const SDL_Color* pal, Uint8 color);
 	/// Gets the position of a given palette.
 	/**
 	 * Returns the position of a palette inside an X-Com palette file (each is a 768-byte chunks).

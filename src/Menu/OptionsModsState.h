@@ -64,6 +64,8 @@ public:
 	void moveModDown(Action *action, unsigned int row, bool max = false);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstModsMousePress(Action *action);
+    /// Handler for using mouse wheel in the list.
+    void lstModsMouseWheel(Action *action);
 };
 
 }

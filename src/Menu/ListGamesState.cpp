@@ -25,6 +25,7 @@
 #include "../Engine/Exception.h"
 #include "../Engine/Options.h"
 #include "../Engine/Unicode.h"
+#include "../Engine/Screen.h"
 #include "../Mod/Mod.h"
 #include "../Engine/LocalizedText.h"
 #include "../Interface/TextButton.h"
@@ -135,7 +136,12 @@ ListGamesState::ListGamesState(OptionsOrigin origin, int firstValidRow, bool aut
 	_lstSaves->setMargin(8);
 	_lstSaves->onMouseOver((ActionHandler)&ListGamesState::lstSavesMouseOver);
 	_lstSaves->onMouseOut((ActionHandler)&ListGamesState::lstSavesMouseOut);
+#ifdef __ANDROID__
+	_lstSaves->onMouseClick((ActionHandler)&ListGamesState::lstSavesPress);
+//#endif
+#else
 	_lstSaves->onMousePress((ActionHandler)&ListGamesState::lstSavesPress);
+#endif
 
 	_txtDetails->setWordWrap(true);
 	_txtDetails->setText(tr("STR_DETAILS").arg(""));

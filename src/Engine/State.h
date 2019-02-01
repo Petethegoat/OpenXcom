@@ -120,6 +120,8 @@ public:
 	virtual void resize(int &dX, int &dY);
 	/// Re-orients all the surfaces in the state.
 	virtual void recenter(int dX, int dY);
+	/// Returns the pointer to the game object
+	static Game *getGame();
 };
 
 }

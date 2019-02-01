@@ -64,6 +64,10 @@ private:
 	void updateArrows();
 	/// Updates the visible rows.
 	void updateVisible();
+	/// The following variables are here only to provide finger-scrolling functionality.
+	int _accumulatedDelta;  // How much did the cursor travel?
+	bool _overThreshold;    // Did we go over threshold?
+	bool _dragScrollable;   // Is drag-scrolling enabled for this TextList?
 public:
 	/// Creates a text list with the specified size and position.
 	TextList(int width, int height, int x = 0, int y = 0);
@@ -179,6 +183,8 @@ public:
 	void handle(Action *action, State *state) override;
 	/// Special handling for mouse presses.
 	void mousePress(Action *action, State *state) override;
+	/// Special handling for mousewheel events.
+	void mouseWheel(Action *action, State *state);
 	/// Special handling for mouse releases.
 	void mouseRelease(Action *action, State *state) override;
 	/// Special handling for mouse clicks.
@@ -201,6 +207,10 @@ public:
 	void setFlooding(bool flooding);
 	/// Treat separators as spaces (false) or as normal text (true)?
 	void setIgnoreSeparators(bool ignoreSeparators);
+	/// Set drag-scrolling for this TextList
+	void setDragScrollable(bool scrollable);
+	/// Check if the list supports drag-scrolling
+	bool isDragScrollable();
 };
 
 }

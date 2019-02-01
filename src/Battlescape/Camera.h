@@ -54,6 +54,8 @@ public:
 	void setScrollTimer(Timer *mouse, Timer *key);
 	/// Special handling for mouse press.
 	void mousePress(Action *action, State *state);
+	/// Special handling for mousewheel events.
+	void mouseWheel(Action *action, State *state);
 	/// Special handling for mouse release.
 	void mouseRelease(Action *action, State *state);
 	/// Special handling for mouse over.

@@ -37,6 +37,9 @@
 #include "Pathfinding.h"
 #include "TileEngine.h"
 #include "../Interface/Text.h"
+#ifdef __MOBILE__
+#include "../Engine/InteractiveSurface.h"
+#endif
 
 namespace OpenXcom
 {
@@ -54,7 +57,12 @@ ActionMenuState::ActionMenuState(BattleAction *action, int x, int y) : _action(a
 
 	// Set palette
 	_game->getSavedGame()->getSavedBattle()->setPaletteByDepth(this);
-
+#ifdef __MOBILE__
+	// Set an underlying InteractiveSurface to exit the menu
+	_outside = new InteractiveSurface(Options::baseXResolution, Options::baseYResolution, 0, 0);
+	_outside->onMouseClick((ActionHandler)&ActionMenuState::outsideClick);
+	add(_outside);
+#endif
 	for (int i = 0; i < 6; ++i)
 	{
 		_actionMenu[i] = new ActionMenuItem(i, _game, x, y);
@@ -196,7 +204,7 @@ void ActionMenuState::init()
  * @param name Action description.
  * @param id Pointer to the new item ID.
  */
-void ActionMenuState::addItem(BattleActionType ba, const std::string &name, int *id, SDLKey key)
+void ActionMenuState::addItem(BattleActionType ba, const std::string &name, int *id, SDL_Keycode key)
 {
 	std::string s1, s2;
 	int acc = _action->actor->getFiringAccuracy(ba, _action->weapon, _game->getMod());
@@ -465,6 +473,7 @@ void ActionMenuState::btnActionMenuItemClick(Action *action)
 			_game->getSavedGame()->getSavedBattle()->hitLog << tr("STR_HIT_LOG_WEAPON") << ": " << tr(weapon->getType()) << "\n\n";
 		}
 	}
+	action->getDetails()->type = SDL_FIRSTEVENT;
 }
 
 /**
@@ -476,5 +485,11 @@ void ActionMenuState::resize(int &dX, int &dY)
 {
 	State::recenter(dX, dY * 2);
 }
+#ifdef __MOBILE__
+void ActionMenuState::outsideClick(Action *action)
+{
+	_game->popState();
+}
+#endif
 
 }

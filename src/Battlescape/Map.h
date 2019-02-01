@@ -111,8 +111,11 @@ public:
 	void mousePress(Action *action, State *state) override;
 	/// Special handling for mouse release.
 	void mouseRelease(Action *action, State *state) override;
+	/// Special handling for mousewheel events.
+	void mouseWheel(Action *action, State *state);
 	/// Special handling for mouse over
 	void mouseOver(Action *action, State *state) override;
+	void fingerMotion(Action *action, State *state);
 	/// Special handling for key presses.
 	void keyboardPress(Action *action, State *state) override;
 	/// Special handling for key releases.

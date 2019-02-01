@@ -34,7 +34,9 @@ namespace OpenXcom
  */
 OptionsControlsState::OptionsControlsState(OptionsOrigin origin) : OptionsBaseState(origin), _selected(-1), _selKey(0)
 {
+#if !defined(__MOBILE__) && !defined(__PSEUDO_ANDROID__)
 	setCategory(_btnControls);
+#endif
 
 	// Create objects
 	_lstControls = new TextList(200, 136, 94, 8);
@@ -152,7 +154,7 @@ void OptionsControlsState::addControls(const std::vector<OptionInfo> &keys)
 	for (std::vector<OptionInfo>::const_iterator i = keys.begin(); i != keys.end(); ++i)
 	{
 		std::string name = tr(i->description());
-		SDLKey *key = i->asKey();
+		SDL_Keycode *key = i->asKey();
 		std::string keyName = ucWords(SDL_GetKeyName(*key));
 		if (*key == SDLK_UNKNOWN)
 			keyName = "";
@@ -243,7 +245,7 @@ void OptionsControlsState::lstControlsKeyPress(Action *action)
 {
 	if (_selected != -1)
 	{
-		SDLKey key = action->getDetails()->key.keysym.sym;
+		SDL_Keycode key = action->getDetails()->key.keysym.sym;
 		if (key != 0 &&
 			key != SDLK_LSHIFT && key != SDLK_LALT && key != SDLK_LCTRL &&
 			key != SDLK_RSHIFT && key != SDLK_RALT && key != SDLK_RCTRL)

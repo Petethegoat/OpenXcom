@@ -46,10 +46,29 @@ BaseNameState::BaseNameState(Base *base, Globe *globe, bool first) : _base(base)
 	_screen = false;
 
 	// Create objects
-	_window = new Window(this, 192, 80, 32, 60, POPUP_BOTH);
-	_btnOk = new TextButton(162, 12, 47, 118);
-	_txtTitle = new Text(182, 17, 37, 70);
-	_edtName = new TextEdit(this, 127, 16, 59, 94);
+#ifdef __MOBILE__
+	int windowTop = 15;
+	int windowLeft = 32;
+#else
+	int windowTop = 60;
+	int windowLeft = 32;
+#endif
+	_window = new Window(this, 192, 80, windowLeft, windowTop, POPUP_BOTH);
+#ifdef __MOBILE__
+	if(_first)
+	{
+		_btnOk = new TextButton(81, 12, windowLeft + 15, windowTop + 58);
+	}
+	else
+	{
+		_btnOk = new TextButton(162, 12, windowLeft + 15, windowTop + 58);
+	}
+	_btnCancel = new TextButton(81, 12, windowLeft + 15 + 81, windowTop + 58);
+#else
+	_btnOk = new TextButton(162, 12, windowLeft + 15, windowTop + 58);
+#endif
+	_txtTitle = new Text(182, 17, windowLeft + 5, windowTop + 10);
+	_edtName = new TextEdit(this, 127, 16, windowLeft + 27, windowTop + 34);
 
 	// Set palette
 	setInterface("baseNaming");
@@ -58,7 +77,9 @@ BaseNameState::BaseNameState(Base *base, Globe *globe, bool first) : _base(base)
 	add(_btnOk, "button", "baseNaming");
 	add(_txtTitle, "text", "baseNaming");
 	add(_edtName, "text", "baseNaming");
-
+#ifdef __MOBILE__
+	add(_btnCancel, "text", "baseNaming");
+#endif
 	centerAllSurfaces();
 
 	// Set up objects
@@ -68,6 +89,12 @@ BaseNameState::BaseNameState(Base *base, Globe *globe, bool first) : _base(base)
 	_btnOk->onMouseClick((ActionHandler)&BaseNameState::btnOkClick);
 	//_btnOk->onKeyboardPress((ActionHandler)&BaseNameState::btnOkClick, Options::keyOk);
 	_btnOk->onKeyboardPress((ActionHandler)&BaseNameState::btnOkClick, Options::keyCancel);
+#ifdef __MOBILE__
+	_btnCancel->setText(tr("STR_CANCEL_UC"));
+	_btnCancel->onMouseClick((ActionHandler)&BaseNameState::btnCancelClick); /* That _will_ bite me in the ass, won't it? */
+
+	_btnCancel->setVisible(_first);
+#endif
 
 	//something must be in the name before it is acceptable
 	_btnOk->setVisible(false);
@@ -119,6 +146,13 @@ void BaseNameState::btnOkClick(Action *)
 {
 	if (!_edtName->getText().empty())
 	{
+#ifdef __MOBILE__
+		// Hide the keyboard (it won't hide itself)!
+		if (SDL_IsScreenKeyboardShown(NULL))
+		{
+			SDL_StopTextInput();
+		}
+#endif
 		_game->popState();
 		_game->popState();
 		if (!_first || Options::customInitialBase)
@@ -131,5 +165,22 @@ void BaseNameState::btnOkClick(Action *)
 		}
 	}
 }
+
+#ifdef __MOBILE__
+/**
+ * Hopefully this will pop enough states to get back to the base placing view
+ */
+void BaseNameState::btnCancelClick(Action *)
+{
+#ifdef __MOBILE__
+	if (SDL_IsScreenKeyboardShown(NULL))
+	{
+		SDL_StopTextInput();
+	}
+#endif
+	_globe->onMouseOver(0);
+	_game->popState();
+}
+#endif
 
 }

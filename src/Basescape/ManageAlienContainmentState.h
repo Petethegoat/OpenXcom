@@ -83,6 +83,8 @@ public:
 	void lstItemsRightArrowClick(Action *action);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstItemsMousePress(Action *action);
+	/// Handler for mousewheeling over the list.
+	void lstItemsMouseWheel(Action *action);
 	/// Increases the quantity of an alien by one.
 	void increase();
 	/// Increases the quantity of an alien by the given value.

@@ -105,6 +105,8 @@ public:
 	void lstItemsRightArrowClick(Action *action);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstItemsMousePress(Action *action);
+	/// Handler for mouse-wheel events
+	void lstItemsMouseWheel(Action *action);
 	/// Increases the quantity of an item by one.
 	void increase();
 	/// Decreases the quantity of an item by one.

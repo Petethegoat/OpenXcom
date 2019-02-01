@@ -1334,7 +1334,23 @@ void Map::drawTerrain(Surface *surface)
 						{
 							if (waypXOff == 2 && waypYOff == 2)
 							{
-								tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(7);
+								// Treat aiming waypoints like cursor
+								BattleActionType currentBA = _save->getBattleGame()->getCurrentAction()->type;
+								if (currentBA != BA_LAUNCH)
+								{
+									if (unit && (unit->getVisible() || _save->getDebugMode()))
+									{
+										tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(7 + halfAnimFrame);
+									}
+									else
+									{
+										tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(6);
+									}
+								}
+								else
+								{
+									tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(7);
+								}
 								Surface::blitRaw(surface, tmpSurface, screenPosition.x, screenPosition.y, 0);
 							}
 							if (_save->getBattleGame()->getCurrentAction()->type == BA_LAUNCH || _save->getBattleGame()->getCurrentAction()->sprayTargeting)
@@ -1555,6 +1571,17 @@ void Map::mouseRelease(Action *action, State *state)
 }
 
 /**
+ * Handles mousewheel events on the map.
+ * @param action Pointer to an action.
+ * @param state State that the action handlers belong to.
+ */
+void Map::mouseWheel(Action *action, State *state)
+{
+	InteractiveSurface::mouseWheel(action, state);
+	_camera->mouseWheel(action, state);
+}
+
+/**
  * Handles keyboard presses on the map.
  * @param action Pointer to an action.
  * @param state State that the action handlers belong to.
@@ -1654,6 +1681,16 @@ void Map::mouseOver(Action *action, State *state)
 	_mouseX = (int)action->getAbsoluteXMouse();
 	_mouseY = (int)action->getAbsoluteYMouse();
 	setSelectorPosition(_mouseX, _mouseY);
+}
+
+/**
+ * Handles finger motion events on the map
+ * @param action Pointer to an action.
+ * @param state State that the action handlers belong to.
+ */
+void Map::fingerMotion(Action *action, State *state)
+{
+	InteractiveSurface::fingerMotion(action, state);
 }
 
 
@@ -1941,7 +1978,7 @@ void Map::scrollKey()
  */
 void Map::fadeShade()
 {
-	bool hold = SDL_GetKeyState(NULL)[Options::keyNightVisionHold];
+	bool hold = SDL_GetKeyboardState(NULL)[SDL_GetScancodeFromKey(Options::keyNightVisionHold)];
 	if ((_nightVisionOn && !hold) || (!_nightVisionOn && hold))
 	{
 		_nvColor = Options::nightVisionColor;
